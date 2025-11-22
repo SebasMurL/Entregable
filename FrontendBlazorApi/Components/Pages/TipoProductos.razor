@@ -1,0 +1,363 @@
+@page "/tipoproductos"
+
+@using System.Net.Http.Json
+@using FrontendBlazorApi.Models
+@inject IHttpClientFactory fabricaHttp
+@rendermode InteractiveServer
+
+<PageTitle>Tipos de Producto</PageTitle>
+
+<h3>Gestión de Tipos de Producto</h3>
+
+<div class="mb-3 d-flex gap-2">
+    <button type="button" class="btn btn-outline-secondary" @onclick="ProbarConexion">Probar conexión</button>
+    <button type="button" class="btn btn-outline-primary" @onclick="CargarTiposProducto">Mostrar todos</button>
+    <button type="button" class="btn btn-outline-dark" @onclick="LimpiarFormulario">Limpiar</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(mensaje))
+{
+    <div class="@claseAviso" role="alert">@mensaje</div>
+}
+
+<h4>Formulario de Tipo de Producto</h4>
+<EditForm Model="tipoProductoActual" OnValidSubmit="GuardarSegunEstado" FormName="TipoProductoForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label">ID</label>
+            <InputNumber class="form-control" @bind-Value="tipoProductoActual.Id" readonly="@existeTipoProducto" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Nombre</label>
+            <InputText class="form-control" @bind-Value="tipoProductoActual.Nombre" />
+        </div>
+        <div class="col-md-5">
+            <label class="form-label">Descripción</label>
+            <InputText class="form-control" @bind-Value="tipoProductoActual.Descripcion" />
+        </div>
+    </div>
+    <div class="mt-3 d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary">@textoBotonGuardar</button>
+        <button type="button" class="btn btn-secondary" @onclick="BuscarPorId">Buscar</button>
+        <button type="button" class="btn btn-danger" @onclick="EliminarTipoProducto" disabled="@(!existeTipoProducto)">Eliminar</button>
+    </div>
+</EditForm>
+
+<hr />
+
+@if (cargando)
+{
+    <p><em>Cargando tipos de producto...</em></p>
+}
+else if (listaTiposProducto.Count == 0)
+{
+    <p>No hay tipos de producto disponibles.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Descripción</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var tp in listaTiposProducto)
+            {
+                <tr>
+                    <td>@tp.Id</td>
+                    <td>@tp.Nombre</td>
+                    <td>@tp.Descripcion</td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-outline-primary" 
+                                @onclick="@(() => CargarEnFormulario(tp))">
+                            Cargar
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<TipoProducto> listaTiposProducto = new();
+    [SupplyParameterFromForm]
+    private TipoProducto tipoProductoActual { get; set; } = new();
+    private bool existeTipoProducto = false;
+    private string textoBotonGuardar = "Crear";
+    private string mensaje = "";
+    private string claseAviso = "alert alert-info";
+    private bool cargando = false;
+    private const string urlBaseApi = "api/tipoproducto";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarTiposProducto();
+    }
+
+    private async Task CargarTiposProducto()
+    {
+        try
+        {
+            cargando = true;
+            var cliente = fabricaHttp.CreateClient("ApiTipoProductos");
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<TipoProducto>>>(urlBaseApi);
+            listaTiposProducto = respuesta?.Datos ?? new List<TipoProducto>();
+            mensaje = $"Se cargaron {listaTiposProducto.Count} tipo(s) de producto.";
+            claseAviso = "alert alert-success";
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al listar tipos de producto: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task BuscarPorId()
+    {
+        LimpiarMensajes();
+        if (tipoProductoActual.Id <= 0)
+        {
+            mensaje = "Debe indicar un ID válido para buscar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiTipoProductos");
+            var ruta = $"{urlBaseApi}/id/{tipoProductoActual.Id}";
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<TipoProducto>>>(ruta);
+            var encontrado = respuesta?.Datos?.FirstOrDefault();
+
+            if (encontrado is not null)
+            {
+                tipoProductoActual = new TipoProducto
+                {
+                    Id = encontrado.Id,
+                    Nombre = encontrado.Nombre,
+                    Descripcion = encontrado.Descripcion
+                };
+                existeTipoProducto = true;
+                textoBotonGuardar = "Actualizar";
+                mensaje = "Tipo de producto cargado en el formulario.";
+                claseAviso = "alert alert-success";
+            }
+            else
+            {
+                existeTipoProducto = false;
+                textoBotonGuardar = "Crear";
+                mensaje = "Tipo de producto no encontrado.";
+                claseAviso = "alert alert-warning";
+            }
+        }
+        catch (Exception error)
+        {
+            existeTipoProducto = false;
+            textoBotonGuardar = "Crear";
+            mensaje = $"Error al buscar tipo de producto: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task GuardarSegunEstado()
+    {
+        if (existeTipoProducto)
+            await ActualizarTipoProducto();
+        else
+            await CrearTipoProducto();
+    }
+
+    private async Task CrearTipoProducto()
+    {
+        LimpiarMensajes();
+        try
+        {
+            // Crear un objeto sin el campo Id para la solicitud POST
+            var tipoProductoParaCrear = new
+            {
+                Nombre = tipoProductoActual.Nombre,
+                Descripcion = tipoProductoActual.Descripcion
+            };
+            if(Vacio(tipoProductoParaCrear))
+            {
+                return;
+            }
+            var cliente = fabricaHttp.CreateClient("ApiTipoProductos");
+            var respuesta = await cliente.PostAsJsonAsync(urlBaseApi, tipoProductoParaCrear);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Tipo de producto creado correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarTiposProducto();
+                LimpiarFormulario();
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"No se pudo crear el tipo de producto. Detalle: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al crear tipo de producto: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task ActualizarTipoProducto()
+    {
+        LimpiarMensajes();
+        if (tipoProductoActual.Id <= 0)
+        {
+            mensaje = "Debe indicar un ID válido para actualizar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            // Crear un objeto sin el campo Id para la solicitud PUT
+            var tipoProductoParaActualizar = new
+            {
+                Nombre = tipoProductoActual.Nombre,
+                Descripcion = tipoProductoActual.Descripcion
+            };
+            if(Vacio(tipoProductoParaActualizar))
+            {
+                return;
+            }
+            var cliente = fabricaHttp.CreateClient("ApiTipoProductos");
+            var ruta = $"{urlBaseApi}/id/{tipoProductoActual.Id}";
+            var respuesta = await cliente.PutAsJsonAsync(ruta, tipoProductoParaActualizar);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Tipo de producto actualizado correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarTiposProducto();
+                existeTipoProducto = true;
+                textoBotonGuardar = "Actualizar";
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"No se pudo actualizar el tipo de producto. Detalle: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al actualizar tipo de producto: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task EliminarTipoProducto()
+    {
+        LimpiarMensajes();
+        if (tipoProductoActual.Id <= 0)
+        {
+            mensaje = "Debe indicar un ID válido para eliminar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiTipoProductos");
+            var ruta = $"{urlBaseApi}/id/{tipoProductoActual.Id}";
+            var respuesta = await cliente.DeleteAsync(ruta);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Tipo de producto eliminado correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarTiposProducto();
+                LimpiarFormulario();
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"No se pudo eliminar el tipo de producto. Detalle: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al eliminar tipo de producto: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task ProbarConexion()
+    {
+        LimpiarMensajes();
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiTipoProductos");
+            var respuesta = await cliente.GetAsync(urlBaseApi);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Conexión con la API verificada.";
+                claseAviso = "alert alert-success";
+            }
+            else
+            {
+                mensaje = $"La API respondió con estado {(int)respuesta.StatusCode}.";
+                claseAviso = "alert alert-warning";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error de conexión a la API: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private void CargarEnFormulario(TipoProducto tp)
+    {
+        tipoProductoActual = new TipoProducto
+        {
+            Id = tp.Id,
+            Nombre = tp.Nombre,
+            Descripcion = tp.Descripcion
+        };
+        existeTipoProducto = true;
+        textoBotonGuardar = "Actualizar";
+        mensaje = "Tipo de producto seleccionado desde el listado.";
+        claseAviso = "alert alert-info";
+    }
+
+    private void LimpiarMensajes()
+    {
+        mensaje = "";
+        claseAviso = "alert alert-info";
+    }
+
+    private void LimpiarFormulario()
+    {
+        tipoProductoActual = new TipoProducto();
+        existeTipoProducto = false;
+        textoBotonGuardar = "Crear";
+        LimpiarMensajes();
+    }
+    private bool Vacio(dynamic p)
+    {
+        if(string.IsNullOrWhiteSpace(p.Nombre)||string.IsNullOrWhiteSpace(p.Descripcion))
+        {
+            mensaje="Error: Campo Vacio";
+            return true;
+        }
+        return false;
+    }
+}

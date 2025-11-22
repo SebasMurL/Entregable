@@ -1,0 +1,369 @@
+@page "/tipoproyectos"
+
+@using System.Net.Http.Json
+@using FrontendBlazorApi.Models
+@inject IHttpClientFactory fabricaHttp
+@rendermode InteractiveServer
+
+<PageTitle>Tipos de Proyecto</PageTitle>
+
+<h3>Gestión de Tipos de Proyecto</h3>
+
+<div class="mb-3 d-flex gap-2">
+    <button type="button" class="btn btn-outline-secondary" @onclick="ProbarConexion">Probar conexión</button>
+    <button type="button" class="btn btn-outline-primary" @onclick="CargarTiposProyecto">Mostrar todos</button>
+    <button type="button" class="btn btn-outline-dark" @onclick="LimpiarFormulario">Limpiar</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(mensaje))
+{
+    <div class="@claseAviso" role="alert">@mensaje</div>
+}
+
+<h4>Formulario de Tipo de Proyecto</h4>
+<EditForm Model="tipoProyectoActual" OnValidSubmit="GuardarSegunEstado" FormName="TipoProyectoForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label">ID</label>
+            <InputNumber class="form-control" @bind-Value="tipoProyectoActual.Id" readonly="@existeTipoProyecto" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Nombre</label>
+            <InputText class="form-control" @bind-Value="tipoProyectoActual.Nombre" />
+        </div>
+        <!--Aqui esta la lista desplegable, copiar y pegar para futuros cruds-->
+        <div class="col-md-5">
+            <label class="form-label">TipoDeProyecto(Descripcion)</label>
+            <InputSelect class="form-control" @bind-Value="tipoProyectoActual.Descripcion">
+            <option value="">Seleccione un tipo de proyecto</option>  <!-- Opción por defecto (vacía) -->
+            <option value="Tipo De Proyecto A">Tipo De Proyecto A</option>
+            <option value="Tipo De Proyecto B">Tipo De Proyecto B</option>
+            <option value="Tipo De Proyecto C">Tipo De Proyecto C</option>
+            </InputSelect>
+        </div>
+    </div>
+    <div class="mt-3 d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary">@textoBotonGuardar</button>
+        <button type="button" class="btn btn-secondary" @onclick="BuscarPorId">Buscar</button>
+        <button type="button" class="btn btn-danger" @onclick="EliminarTipoProyecto" disabled="@(!existeTipoProyecto)">Eliminar</button>
+    </div>
+</EditForm>
+
+<hr />
+
+@if (cargando)
+{
+    <p><em>Cargando tipos de proyecto...</em></p>
+}
+else if (listaTiposProyecto.Count == 0)
+{
+    <p>No hay tipos de proyecto disponibles.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Descripción</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var tp in listaTiposProyecto)
+            {
+                <tr>
+                    <td>@tp.Id</td>
+                    <td>@tp.Nombre</td>
+                    <td>@tp.Descripcion</td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-outline-primary" 
+                                @onclick="@(() => CargarEnFormulario(tp))">
+                            Cargar
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<TipoProyecto> listaTiposProyecto = new();
+    [SupplyParameterFromForm]
+    private TipoProyecto tipoProyectoActual { get; set; } = new();
+    private bool existeTipoProyecto = false;
+    private string textoBotonGuardar = "Crear";
+    private string mensaje = "";
+    private string claseAviso = "alert alert-info";
+    private bool cargando = false;
+    private const string urlBaseApi = "api/tipoproyecto";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarTiposProyecto();
+    }
+
+    private async Task CargarTiposProyecto()
+    {
+        try
+        {
+            cargando = true;
+            var cliente = fabricaHttp.CreateClient("ApiTipoProyectos");
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<TipoProyecto>>>(urlBaseApi);
+            listaTiposProyecto = respuesta?.Datos ?? new List<TipoProyecto>();
+            mensaje = $"Se cargaron {listaTiposProyecto.Count} tipo(s) de proyecto.";
+            claseAviso = "alert alert-success";
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al listar tipos de proyecto: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task BuscarPorId()
+    {
+        LimpiarMensajes();
+        if (tipoProyectoActual.Id <= 0)
+        {
+            mensaje = "Debe indicar un ID válido para buscar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiTipoProyectos");
+            var ruta = $"{urlBaseApi}/id/{tipoProyectoActual.Id}";
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<TipoProyecto>>>(ruta);
+            var encontrado = respuesta?.Datos?.FirstOrDefault();
+
+            if (encontrado is not null)
+            {
+                tipoProyectoActual = new TipoProyecto
+                {
+                    Id = encontrado.Id,
+                    Nombre = encontrado.Nombre,
+                    Descripcion = encontrado.Descripcion
+                };
+                existeTipoProyecto = true;
+                textoBotonGuardar = "Actualizar";
+                mensaje = "Tipo de proyecto cargado en el formulario.";
+                claseAviso = "alert alert-success";
+            }
+            else
+            {
+                existeTipoProyecto = false;
+                textoBotonGuardar = "Crear";
+                mensaje = "Tipo de proyecto no encontrado.";
+                claseAviso = "alert alert-warning";
+            }
+        }
+        catch (Exception error)
+        {
+            existeTipoProyecto = false;
+            textoBotonGuardar = "Crear";
+            mensaje = $"Error al buscar tipo de proyecto: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task GuardarSegunEstado()
+    {
+        if (existeTipoProyecto)
+            await ActualizarTipoProyecto();
+        else
+            await CrearTipoProyecto();
+    }
+
+    private async Task CrearTipoProyecto()
+    {
+        LimpiarMensajes();
+        try
+        {
+            // Crear un objeto sin el campo Id para la solicitud POST
+            var tipoProyectoParaCrear = new
+            {
+                Nombre = tipoProyectoActual.Nombre,
+                Descripcion = tipoProyectoActual.Descripcion
+            };
+            if(Vacio(tipoProyectoParaCrear))
+            {
+                return;
+            }
+            var cliente = fabricaHttp.CreateClient("ApiTipoProyectos");
+            var respuesta = await cliente.PostAsJsonAsync(urlBaseApi, tipoProyectoParaCrear);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Tipo de proyecto creado correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarTiposProyecto();
+                LimpiarFormulario();
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"No se pudo crear el tipo de proyecto. Detalle: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al crear tipo de proyecto: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task ActualizarTipoProyecto()
+    {
+        LimpiarMensajes();
+        if (tipoProyectoActual.Id <= 0)
+        {
+            mensaje = "Debe indicar un ID válido para actualizar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            // Crear un objeto sin el campo Id para la solicitud PUT
+            var tipoProyectoParaActualizar = new
+            {
+                Nombre = tipoProyectoActual.Nombre,
+                Descripcion = tipoProyectoActual.Descripcion
+            };
+            if(Vacio(tipoProyectoParaActualizar))
+            {
+                return;
+            }
+            var cliente = fabricaHttp.CreateClient("ApiTipoProyectos");
+            var ruta = $"{urlBaseApi}/id/{tipoProyectoActual.Id}";
+            var respuesta = await cliente.PutAsJsonAsync(ruta, tipoProyectoParaActualizar);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Tipo de proyecto actualizado correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarTiposProyecto();
+                existeTipoProyecto = true;
+                textoBotonGuardar = "Actualizar";
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"No se pudo actualizar el tipo de proyecto. Detalle: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al actualizar tipo de proyecto: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task EliminarTipoProyecto()
+    {
+        LimpiarMensajes();
+        if (tipoProyectoActual.Id <= 0)
+        {
+            mensaje = "Debe indicar un ID válido para eliminar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiTipoProyectos");
+            var ruta = $"{urlBaseApi}/id/{tipoProyectoActual.Id}";
+            var respuesta = await cliente.DeleteAsync(ruta);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Tipo de proyecto eliminado correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarTiposProyecto();
+                LimpiarFormulario();
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"No se pudo eliminar el tipo de proyecto. Detalle: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al eliminar tipo de proyecto: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task ProbarConexion()
+    {
+        LimpiarMensajes();
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiTipoProyectos");
+            var respuesta = await cliente.GetAsync(urlBaseApi);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Conexión con la API verificada.";
+                claseAviso = "alert alert-success";
+            }
+            else
+            {
+                mensaje = $"La API respondió con estado {(int)respuesta.StatusCode}.";
+                claseAviso = "alert alert-warning";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error de conexión a la API: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private void CargarEnFormulario(TipoProyecto tp)
+    {
+        tipoProyectoActual = new TipoProyecto
+        {
+            Id = tp.Id,
+            Nombre = tp.Nombre,
+            Descripcion = tp.Descripcion
+        };
+        existeTipoProyecto = true;
+        textoBotonGuardar = "Actualizar";
+        mensaje = "Tipo de proyecto seleccionado desde el listado.";
+        claseAviso = "alert alert-info";
+    }
+
+    private void LimpiarMensajes()
+    {
+        mensaje = "";
+        claseAviso = "alert alert-info";
+    }
+
+    private void LimpiarFormulario()
+    {
+        tipoProyectoActual = new TipoProyecto();
+        existeTipoProyecto = false;
+        textoBotonGuardar = "Crear";
+        LimpiarMensajes();
+    }
+    private bool Vacio(dynamic p)
+    {
+        if(string.IsNullOrWhiteSpace(p.Nombre)||string.IsNullOrWhiteSpace(p.Descripcion))
+        {
+            mensaje="Error: Campo Vacio";
+            return true;
+        }
+        return false;
+    }
+}

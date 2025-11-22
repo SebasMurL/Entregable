@@ -1,0 +1,381 @@
+@page "/ejecucionpresupuestos"
+
+@using System.Net.Http.Json
+@using FrontendBlazorApi.Models
+@inject IHttpClientFactory fabricaHttp
+@rendermode InteractiveServer
+
+<PageTitle>Gestión de Ejecución de Presupuestos</PageTitle>
+
+<h3>Gestión de Ejecución de Presupuestos</h3>
+
+<div class="mb-3 d-flex gap-2">
+    <button class="btn btn-outline-secondary" @onclick="ProbarConexion">Probar conexión</button>
+    <button class="btn btn-outline-primary" @onclick="CargarEjecuciones">Mostrar todos</button>
+    <button class="btn btn-outline-dark" @onclick="LimpiarFormulario">Limpiar</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(mensaje))
+{
+    <div class="@claseAviso" role="alert">@mensaje</div>
+}
+
+<h4>Formulario de Ejecución</h4>
+<EditForm Model="ejecucionActual" OnValidSubmit="GuardarSegunEstado" FormName="EjecucionForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="row g-3">
+        <div class="col-md-2">
+            <label class="form-label">ID (solo búsqueda)</label>
+            <InputNumber class="form-control" @bind-Value="ejecucionActual.Id" />
+        </div>
+
+        <div class="col-md-4">
+            <label class="form-label">Presupuesto</label>
+            <InputSelect class="form-control" @bind-Value="ejecucionActual.IdPresupuesto">
+                <option value="0">Seleccione un presupuesto</option>
+                @foreach (var pres in listaPresupuestos)
+                {
+                    <option value="@pres.Id">Presupuesto #@pres.Id - @pres.Estado</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">Año</label>
+            <InputNumber class="form-control" @bind-Value="ejecucionActual.Anio" />
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">Monto Planeado</label>
+            <InputNumber class="form-control" @bind-Value="ejecucionActual.MontoPlaneado" />
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">Monto Ejecutado</label>
+            <InputNumber class="form-control" @bind-Value="ejecucionActual.MontoEjecutado" />
+        </div>
+
+        <div class="col-md-12">
+            <label class="form-label">Observaciones</label>
+            <InputTextArea class="form-control" @bind-Value="ejecucionActual.Observaciones" />
+        </div>
+    </div>
+
+    <div class="mt-3 d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary">@textoBotonGuardar</button>
+        <button type="button" class="btn btn-secondary" @onclick="BuscarPorId">Buscar</button>
+        <button type="button" class="btn btn-danger" @onclick="EliminarEjecucion" disabled="@(!existeEjecucion)">Eliminar</button>
+    </div>
+</EditForm>
+
+<hr />
+
+@if (cargando)
+{
+    <p><em>Cargando ejecuciones...</em></p>
+}
+else if (listaEjecuciones.Count == 0)
+{
+    <p>No hay ejecuciones registradas.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Presupuesto</th>
+                <th>Año</th>
+                <th>Planeado</th>
+                <th>Ejecutado</th>
+                <th>Observaciones</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var e in listaEjecuciones)
+            {
+                <tr>
+                    <td>@e.Id</td>
+                    <td>@ObtenerNombrePresupuesto(e.IdPresupuesto)</td>
+                    <td>@e.Anio</td>
+                    <td>@(e.MontoPlaneado?.ToString("N2") ?? "-")</td>
+                    <td>@(e.MontoEjecutado?.ToString("N2") ?? "-")</td>
+                    <td>@e.Observaciones</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="@(() => CargarEnFormulario(e))">Cargar</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<EjecucionPresupuesto> listaEjecuciones = new();
+    private List<Presupuesto> listaPresupuestos = new();
+    private EjecucionPresupuesto ejecucionActual { get; set; } = new();
+
+    private bool existeEjecucion = false;
+    private string textoBotonGuardar = "Crear";
+    private string mensaje = "";
+    private string claseAviso = "alert alert-info";
+    private bool cargando = false;
+
+    private const string urlBaseApi = "api/ejecucionpresupuesto";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarPresupuestos();
+        await CargarEjecuciones();
+    }
+
+    private async Task CargarEjecuciones()
+    {
+        try
+        {
+            cargando = true;
+            var cliente = fabricaHttp.CreateClient("ApiEjecucionPresupuestos");
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<EjecucionPresupuesto>>>(urlBaseApi);
+            listaEjecuciones = respuesta?.Datos ?? new List<EjecucionPresupuesto>();
+            mensaje = $"Se cargaron {listaEjecuciones.Count} ejecución(es).";
+            claseAviso = "alert alert-success";
+        }
+        catch (Exception e)
+        {
+            mensaje = $"Error al listar ejecuciones: {e.Message}";
+            claseAviso = "alert alert-danger";
+        }
+        finally { cargando = false; }
+    }
+
+    private async Task CargarPresupuestos()
+    {
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiPresupuestos");
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<Presupuesto>>>("api/presupuesto");
+            listaPresupuestos = respuesta?.Datos ?? new List<Presupuesto>();
+        }
+        catch (Exception e)
+        {
+            mensaje = $"Error al cargar presupuestos: {e.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private string ObtenerNombrePresupuesto(int idPresupuesto)
+    {
+        return listaPresupuestos.FirstOrDefault(p => p.Id == idPresupuesto)?.Estado ?? "Desconocido";
+    }
+
+    private async Task BuscarPorId()
+    {
+        LimpiarMensajes();
+        if (ejecucionActual.Id <= 0)
+        {
+            mensaje = "Debe indicar un ID válido para buscar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiEjecucionPresupuestos");
+            var ruta = $"{urlBaseApi}/id/{ejecucionActual.Id}";
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<EjecucionPresupuesto>>>(ruta);
+            var encontrado = respuesta?.Datos?.FirstOrDefault();
+
+            if (encontrado != null)
+            {
+                ejecucionActual = encontrado;
+                existeEjecucion = true;
+                textoBotonGuardar = "Actualizar";
+                mensaje = "Ejecución cargada.";
+                claseAviso = "alert alert-success";
+            }
+            else
+            {
+                mensaje = "Ejecución no encontrada.";
+                claseAviso = "alert alert-warning";
+            }
+        }
+        catch (Exception e)
+        {
+            mensaje = $"Error al buscar: {e.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task GuardarSegunEstado()
+    {
+        if (existeEjecucion)
+            await ActualizarEjecucion();
+        else
+            await CrearEjecucion();
+    }
+
+    private async Task CrearEjecucion()
+    {
+        LimpiarMensajes();
+        try
+        {
+            var nueva = new
+            {
+                IdPresupuesto = ejecucionActual.IdPresupuesto,
+                Anio = ejecucionActual.Anio,
+                MontoPlaneado = ejecucionActual.MontoPlaneado,
+                MontoEjecutado = ejecucionActual.MontoEjecutado,
+                Observaciones = ejecucionActual.Observaciones
+            };
+
+            var cliente = fabricaHttp.CreateClient("ApiEjecucionPresupuestos");
+            var respuesta = await cliente.PostAsJsonAsync(urlBaseApi, nueva);
+
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Ejecución creada correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarEjecuciones();
+                LimpiarFormulario();
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"Error al crear ejecución: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception e)
+        {
+            mensaje = $"Error al crear ejecución: {e.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task ActualizarEjecucion()
+    {
+        LimpiarMensajes();
+        if (ejecucionActual.Id <= 0)
+        {
+            mensaje = "Debe indicar un ID válido para actualizar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            var datosActualizados = new
+            {
+                IdPresupuesto = ejecucionActual.IdPresupuesto,
+                Anio = ejecucionActual.Anio,
+                MontoPlaneado = ejecucionActual.MontoPlaneado,
+                MontoEjecutado = ejecucionActual.MontoEjecutado,
+                Observaciones = ejecucionActual.Observaciones
+            };
+
+            var cliente = fabricaHttp.CreateClient("ApiEjecucionPresupuestos");
+            var ruta = $"{urlBaseApi}/id/{ejecucionActual.Id}";
+            var respuesta = await cliente.PutAsJsonAsync(ruta, datosActualizados);
+
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Ejecución actualizada correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarEjecuciones();
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"Error al actualizar ejecución: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception e)
+        {
+            mensaje = $"Error al actualizar ejecución: {e.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task EliminarEjecucion()
+    {
+        LimpiarMensajes();
+        if (ejecucionActual.Id <= 0)
+        {
+            mensaje = "Debe indicar un ID válido para eliminar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiEjecucionPresupuestos");
+            var ruta = $"{urlBaseApi}/id/{ejecucionActual.Id}";
+            var respuesta = await cliente.DeleteAsync(ruta);
+
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Ejecución eliminada correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarEjecuciones();
+                LimpiarFormulario();
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"Error al eliminar ejecución: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception e)
+        {
+            mensaje = $"Error al eliminar ejecución: {e.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task ProbarConexion()
+    {
+        LimpiarMensajes();
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiEjecucionPresupuestos");
+            var respuesta = await cliente.GetAsync(urlBaseApi);
+            mensaje = respuesta.IsSuccessStatusCode
+                ? "Conexión con la API verificada."
+                : $"API respondió con estado {(int)respuesta.StatusCode}.";
+            claseAviso = respuesta.IsSuccessStatusCode ? "alert alert-success" : "alert alert-warning";
+        }
+        catch (Exception e)
+        {
+            mensaje = $"Error de conexión: {e.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private void CargarEnFormulario(EjecucionPresupuesto e)
+    {
+        ejecucionActual = e;
+        existeEjecucion = true;
+        textoBotonGuardar = "Actualizar";
+        mensaje = "Ejecución cargada en el formulario.";
+        claseAviso = "alert alert-info";
+    }
+
+    private void LimpiarFormulario()
+    {
+        ejecucionActual = new EjecucionPresupuesto();
+        existeEjecucion = false;
+        textoBotonGuardar = "Crear";
+        LimpiarMensajes();
+    }
+
+    private void LimpiarMensajes()
+    {
+        mensaje = "";
+        claseAviso = "alert alert-info";
+    }
+}

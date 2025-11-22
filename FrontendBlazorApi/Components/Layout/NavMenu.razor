@@ -1,0 +1,170 @@
+﻿@* 
+    NavMenu.razor
+    Este componente define el menú lateral de navegación de la aplicación.
+    Aquí se colocan los enlaces a las distintas páginas (componentes .razor).
+    Por defecto la plantilla incluye: Home, Counter y Weather.
+    Se ha eliminado Weather porque era un ejemplo de la plantilla.
+    Más adelante aquí se agregará el acceso a la página de Productos.
+*@
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">Proyecto De Aula</a>
+        <button title="Toggle navigation" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+    <nav class="flex-column">
+        @* Enlace a la página Home (Index) *@
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Inicio
+            </NavLink>
+        </div>
+                
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="usuarios">
+                <span class="bi bi-Usuario" aria-hidden="true"></span> Usuarios
+            </NavLink>
+        </div>
+        
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="TipoProductos">
+                <span class="bi bi-TipoProducto" aria-hidden="true"></span> TipoProductos
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="TipoProyectos">
+                <span class="bi bi-TipoProyecto" aria-hidden="true"></span> TipoProyectos
+            </NavLink>
+        </div>
+
+         <div class="nav-item px-3">
+            <NavLink class="nav-link" href="TipoResponsables">
+                <span class="bi bi-TipoResponsable" aria-hidden="true"></span> TipoResponsables
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+          <NavLink class="nav-link" href="entregables">
+            <span class="bi bi-Entregable" aria-hidden="true"></span> Entregables
+          </NavLink>
+      </div>
+
+     <div class="nav-item px-3">
+        <NavLink class="nav-link" href="estados">
+         <span class="bi bi-Estado" aria-hidden="true"></span> Estados
+        </NavLink>
+     </div>
+
+     <div class="nav-item px-3">
+      <NavLink class="nav-link" href="variableestrategicas">
+        <span class="bi bi-VaEstrategica" aria-hidden="true"></span> Variables Estratégicas
+      </NavLink>
+     </div>
+     <div class="nav-item px-3">
+      <NavLink class="nav-link" href="proyectos">
+        <span class="bi bi-VaEstrategica" aria-hidden="true"></span> Proyectos
+      </NavLink>
+     </div>
+
+     <div class="nav-item px-3">
+      <NavLink class="nav-link" href="actividades">
+        <span class="bi bi-VaEstrategica" aria-hidden="true"></span> Actividades
+      </NavLink>
+     </div>
+
+    <div class="nav-item px-3">
+      <NavLink class="nav-link" href="metasestrategicas">
+        <span class="bi bi-VaEstrategica" aria-hidden="true"></span> metasestrategicas
+      </NavLink>
+     </div>
+
+    <div class="nav-item px-3">
+      <NavLink class="nav-link" href="objetivosestrategicos">
+        <span class="bi bi-VaEstrategica" aria-hidden="true"></span> objetivosestrategicos
+      </NavLink>
+     </div>
+
+     <div class="nav-item px-3">
+      <NavLink class="nav-link" href="meta_proyectos">
+        <span class="bi bi-VaEstrategica" aria-hidden="true"></span> meta_proyectos
+      </NavLink>
+     </div>
+
+      <div class="nav-item px-3">
+      <NavLink class="nav-link" href="archivos">
+        <span class="bi bi-VaEstrategica" aria-hidden="true"></span> archivos
+      </NavLink>
+     </div>
+     
+     <div class="nav-item px-3">
+      <NavLink class="nav-link" href="responsables">
+        <span class="bi bi-VaEstrategica" aria-hidden="true"></span> responsables
+      </NavLink>
+     </div>
+
+     <div class="nav-item px-3">
+      <NavLink class="nav-link" href="estado_proyectos">
+        <span class="bi bi-VaEstrategica" aria-hidden="true"></span> estado_proyectos
+      </NavLink>
+     </div>
+
+     <div class="nav-item px-3">
+      <NavLink class="nav-link" href="productos">
+        <span class="bi bi-VaEstrategica" aria-hidden="true"></span> productos
+      </NavLink>
+     </div>
+
+     <div class="nav-item px-3">
+      <NavLink class="nav-link" href="producto_entregables">
+        <span class="bi bi-VaEstrategica" aria-hidden="true"></span> producto_entregables
+      </NavLink>
+     </div>
+
+      <div class="nav-item px-3">
+      <NavLink class="nav-link" href="responsable_entregables">
+        <span class="bi bi-VaEstrategica" aria-hidden="true"></span> responsable_entregables
+      </NavLink>
+     </div>
+
+     <div class="nav-item px-3">
+      <NavLink class="nav-link" href="presupuestos">
+        <span class="bi bi-VaEstrategica" aria-hidden="true"></span> presupuestos
+      </NavLink>
+     </div>
+
+     <div class="nav-item px-3">
+      <NavLink class="nav-link" href="ejecucionpresupuestos">
+        <span class="bi bi-VaEstrategica" aria-hidden="true"></span> ejecucionpresupuestos
+      </NavLink>
+     </div>
+
+
+    </nav>
+</div>
+
+@code {
+    private bool colapsado = true;
+
+    /*
+        Propiedad que define la clase CSS aplicada al contenedor del menú.
+
+        Se usa un operador ternario:
+        - Si colapsado == true → retorna "collapse"
+        - Si colapsado == false → retorna null (sin clase)
+
+        Nota: Se declara como string? porque puede devolver un valor nulo.
+        Esto evita el warning CS8603 ("possible null reference return").
+    */
+    private string? NavMenuCssClass => colapsado ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        colapsado = !colapsado;
+    }
+}

@@ -1,0 +1,192 @@
+@page "/proyectos-jerarquia"
+
+@using System.Net.Http.Json
+@using FrontendBlazorApi.Models
+@inject IHttpClientFactory fabricaHttp
+@rendermode InteractiveServer
+
+<PageTitle>Jerarquía de Proyectos</PageTitle>
+
+<h3>Jerarquía de Proyectos y Microproyectos</h3>
+
+<div class="mb-3 d-flex gap-2">
+    <button class="btn btn-outline-primary" @onclick="CargarJerarquia">Cargar Jerarquía</button>
+    <button class="btn btn-outline-secondary" @onclick="LimpiarDatos">Limpiar</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(mensaje))
+{
+    <div class="@claseAviso" role="alert">@mensaje</div>
+}
+
+@if (cargando)
+{
+    <p><em>Cargando datos...</em></p>
+}
+else if (proyectosRaiz.Count == 0)
+{
+    <p>No hay proyectos registrados.</p>
+}
+else
+{
+    <div class="list-group">
+        @foreach (var proyecto in proyectosRaiz)
+        {
+            <div class="list-group-item">
+                <h5>@proyecto.Titulo (@proyecto.Codigo)</h5>
+                <p class="text-muted">@proyecto.Descripcion</p>
+                <p><strong>Inicio:</strong> @proyecto.FechaInicio?.ToShortDateString() |
+                   <strong>Fin:</strong> @proyecto.FechaFinPrevista?.ToShortDateString()</p>
+
+                <div class="mt-2">
+                    <button class="btn btn-sm btn-outline-danger" @onclick="() => EliminarProyecto(proyecto.Id)">🗑️ Eliminar</button>
+                    <button class="btn btn-sm btn-outline-info" @onclick="() => SeleccionarProyecto(proyecto)">👁 Ver detalles</button>
+                </div>
+
+                @if (diccionarioHijos.ContainsKey(proyecto.Id))
+                {
+                    <div class="ms-4 border-start ps-3 mt-2">
+                        <h6>Microproyectos:</h6>
+                        <ul>
+                            @foreach (var hijo in diccionarioHijos[proyecto.Id])
+                            {
+                                <li>
+                                    <strong>@hijo.Titulo</strong> (@hijo.Codigo)<br />
+                                    <small>@hijo.Descripcion</small><br />
+                                    <button class="btn btn-sm btn-outline-info mt-1" @onclick="() => SeleccionarProyecto(hijo)">👁 Ver</button>
+                                    <button class="btn btn-sm btn-outline-danger mt-1" @onclick="() => EliminarProyecto(hijo.Id)">🗑 Eliminar</button>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted ms-4">Sin microproyectos.</p>
+                }
+            </div>
+        }
+    </div>
+}
+
+@if (proyectoSeleccionado is not null)
+{
+    <hr />
+    <h4>Detalles del Proyecto Seleccionado</h4>
+    <div class="card mb-4">
+        <div class="card-body">
+            <p><strong>Código:</strong> @proyectoSeleccionado.Codigo</p>
+            <p><strong>Título:</strong> @proyectoSeleccionado.Titulo</p>
+            <p><strong>Descripción:</strong> @proyectoSeleccionado.Descripcion</p>
+            <p><strong>Inicio:</strong> @proyectoSeleccionado.FechaInicio?.ToShortDateString()</p>
+            <p><strong>Fin Prevista:</strong> @proyectoSeleccionado.FechaFinPrevista?.ToShortDateString()</p>
+            <p><strong>Responsable:</strong> @proyectoSeleccionado.IdResponsable</p>
+            <p><strong>Tipo Proyecto:</strong> @proyectoSeleccionado.IdTipoProyecto</p>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Proyecto> todosLosProyectos = new();
+    private List<Proyecto> proyectosRaiz = new();
+    private Dictionary<int, List<Proyecto>> diccionarioHijos = new();
+    private Proyecto? proyectoSeleccionado;
+    private bool cargando = false;
+    private string mensaje = "";
+    private string claseAviso = "alert alert-info";
+    private const string urlBaseApi = "api/proyecto";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarJerarquia();
+    }
+
+    private async Task CargarJerarquia()
+    {
+        LimpiarMensajes();
+        try
+        {
+            cargando = true;
+            var cliente = fabricaHttp.CreateClient("ApiProyectos");
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<Proyecto>>>($"{urlBaseApi}?limite=1000");
+            if (respuesta?.Datos == null)
+            {
+                mensaje = "No se recibieron datos.";
+                claseAviso = "alert alert-warning";
+                return;
+            }
+
+            todosLosProyectos = respuesta.Datos;
+            proyectosRaiz = todosLosProyectos
+                .Where(p => p.IdProyectoPadre == null)
+                .OrderBy(p => p.Titulo)
+                .ToList();
+
+            diccionarioHijos = todosLosProyectos
+                .Where(p => p.IdProyectoPadre != null)
+                .GroupBy(p => p.IdProyectoPadre!.Value)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            mensaje = $"Se cargaron {todosLosProyectos.Count} proyectos.";
+            claseAviso = "alert alert-success";
+        }
+        catch (Exception ex)
+        {
+            mensaje = $"Error: {ex.Message}";
+            claseAviso = "alert alert-danger";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task EliminarProyecto(int id)
+    {
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiProyectos");
+            var ruta = $"{urlBaseApi}/id/{id}";
+            var respuesta = await cliente.DeleteAsync(ruta);
+            var detalle = await respuesta.Content.ReadAsStringAsync();
+
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "🗑 Proyecto eliminado correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarJerarquia();
+            }
+            else
+            {
+                mensaje = $"Error al eliminar: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception e)
+        {
+            mensaje = $"Error: {e.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private void SeleccionarProyecto(Proyecto p)
+    {
+        proyectoSeleccionado = p;
+        mensaje = $"Proyecto '{p.Titulo}' seleccionado.";
+        claseAviso = "alert alert-info";
+    }
+
+    private void LimpiarDatos()
+    {
+        proyectosRaiz.Clear();
+        diccionarioHijos.Clear();
+        proyectoSeleccionado = null;
+        mensaje = "";
+    }
+
+    private void LimpiarMensajes()
+    {
+        mensaje = "";
+        claseAviso = "alert alert-info";
+    }
+}

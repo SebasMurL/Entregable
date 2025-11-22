@@ -1,0 +1,410 @@
+@page "/metasestrategicas"
+
+@using System.Net.Http.Json
+@using FrontendBlazorApi.Models
+@inject IHttpClientFactory fabricaHttp
+@rendermode InteractiveServer
+
+<PageTitle>Metas Estratégicas</PageTitle>
+
+<h3>Gestión de Metas Estratégicas</h3>
+
+<div class="mb-3 d-flex gap-2">
+    <button type="button" class="btn btn-outline-secondary" @onclick="ProbarConexion">Probar conexión</button>
+    <button type="button" class="btn btn-outline-primary" @onclick="CargarMetasEstrategicas">Mostrar todas</button>
+    <button type="button" class="btn btn-outline-dark" @onclick="LimpiarFormulario">Limpiar</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(mensaje))
+{
+    <div class="@claseAviso" role="alert">@mensaje</div>
+}
+
+<h4>Formulario de Metas Estratégicas</h4>
+<EditForm Model="metaActual" OnValidSubmit="GuardarSegunMeta" FormName="MetaEstrategicaForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="row g-3">
+        <div class="col-md-12">
+            <label class="form-label">IdObjetivo (Objetivo Estratégico)</label>
+            <InputSelect class="form-control" @bind-Value="metaActual.IdObjetivo">
+                <option value="">Seleccione un objetivo estratégico</option>
+                @foreach (var objetivo in listaObjetivosEstrategicos)
+                {
+                    <option value="@objetivo.Id">@objetivo.Titulo</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-12">
+            <label class="form-label">Titulo</label>
+            <InputText class="form-control" @bind-Value="metaActual.Titulo" />
+        </div>
+        <div class="col-md-12">
+            <label class="form-label">Descripcion</label>
+            <InputTextArea class="form-control" @bind-Value="metaActual.Descripcion" rows="4" />
+        </div>
+    </div>
+    <div class="mt-3 d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary">@textoBotonGuardar</button>
+        <button type="button" class="btn btn-secondary" @onclick="BuscarPorId">Buscar</button>
+        <button type="button" class="btn btn-danger" @onclick="EliminarMeta" disabled="@(!existeMeta)">Eliminar</button>
+    </div>
+</EditForm>
+
+<hr />
+
+@if (cargando)
+{
+    <p><em>Cargando Metas Estratégicas...</em></p>
+}
+else if (listaMetasEstrategicas.Count == 0)
+{
+    <p>No hay Metas Estratégicas disponibles.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>IdObjetivo</th>
+                <th>Objetivo Estratégico</th>
+                <th>Titulo</th>
+                <th>Descripción</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var meta in listaMetasEstrategicas)
+            {
+                <tr>
+                    <td>@meta.Id</td>
+                    <td>@meta.IdObjetivo</td>
+                    <td>@ObtenerNombreObjetivo(meta.IdObjetivo)</td>
+                    <td>@meta.Titulo</td>
+                    <td>@meta.Descripcion</td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-outline-primary" 
+                                @onclick="@(() => CargarEnFormulario(meta))">
+                            Cargar
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<MetaEstrategica> listaMetasEstrategicas = new();
+    private List<ObjetivoEstrategico> listaObjetivosEstrategicos = new();
+    
+    [SupplyParameterFromForm]
+    private MetaEstrategica metaActual { get; set; } = new();
+    
+    private bool existeMeta = false;
+    private string textoBotonGuardar = "Crear";
+    private string mensaje = "";
+    private string claseAviso = "alert alert-info";
+    private bool cargando = false;
+    private const string urlBaseApi = "api/metaestrategica";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarMetasEstrategicas();
+        await CargarObjetivosEstrategicos();
+    }
+
+    private async Task CargarMetasEstrategicas()
+    {
+        try
+        {
+            cargando = true;
+            var cliente = fabricaHttp.CreateClient("ApiMetasEstrategicas");
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<MetaEstrategica>>>(urlBaseApi);
+            listaMetasEstrategicas = respuesta?.Datos ?? new List<MetaEstrategica>();
+            mensaje = $"Se cargaron {listaMetasEstrategicas.Count} Meta(s) Estratégica(s).";
+            claseAviso = "alert alert-success";
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al listar Metas Estratégicas: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task CargarObjetivosEstrategicos()
+    {
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiObjetivosEstrategicos");
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<ObjetivoEstrategico>>>("api/objetivoestrategico");
+            listaObjetivosEstrategicos = respuesta?.Datos ?? new List<ObjetivoEstrategico>();
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al cargar objetivos estratégicos: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private string ObtenerNombreObjetivo(int idObjetivo)
+    {
+        var objetivo = listaObjetivosEstrategicos.FirstOrDefault(o => o.Id == idObjetivo);
+        return objetivo?.Titulo ?? "No encontrado";
+    }
+
+    private async Task BuscarPorId()
+    {
+        LimpiarMensajes();
+        if (metaActual.Id <= 0)
+        {
+            mensaje = "Debe indicar un ID válido para buscar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiMetasEstrategicas");
+            var ruta = $"{urlBaseApi}/id/{metaActual.Id}";
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<MetaEstrategica>>>(ruta);
+            var encontrado = respuesta?.Datos?.FirstOrDefault();
+
+            if (encontrado is not null)
+            {
+                metaActual = new MetaEstrategica
+                {
+                    Id = encontrado.Id,
+                    IdObjetivo = encontrado.IdObjetivo,
+                    Titulo = encontrado.Titulo,
+                    Descripcion = encontrado.Descripcion
+                };
+                existeMeta = true;
+                textoBotonGuardar = "Actualizar";
+                mensaje = "Meta Estratégica cargada en el formulario.";
+                claseAviso = "alert alert-success";
+            }
+            else
+            {
+                existeMeta = false;
+                textoBotonGuardar = "Crear";
+                mensaje = "Meta Estratégica no encontrada.";
+                claseAviso = "alert alert-warning";
+            }
+        }
+        catch (Exception error)
+        {
+            existeMeta = false;
+            textoBotonGuardar = "Crear";
+            mensaje = $"Error al buscar Meta Estratégica: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task GuardarSegunMeta()
+    {
+        if (existeMeta)
+            await ActualizarMeta();
+        else
+            await CrearMeta();
+    }
+
+    private async Task CrearMeta()
+    {
+        LimpiarMensajes();
+        try
+        {
+            var metaParaCrear = new
+            {
+                IdObjetivo = metaActual.IdObjetivo,
+                Titulo = metaActual.Titulo,
+                Descripcion = metaActual.Descripcion
+            };
+
+            if (Vacio(metaParaCrear))
+            {
+                return;
+            }
+
+            var cliente = fabricaHttp.CreateClient("ApiMetasEstrategicas");
+            var respuesta = await cliente.PostAsJsonAsync(urlBaseApi, metaParaCrear);
+            
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Meta Estratégica creada correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarMetasEstrategicas();
+                LimpiarFormulario();
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"No se pudo crear la Meta Estratégica. Detalle: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al crear Meta Estratégica: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task ActualizarMeta()
+    {
+        LimpiarMensajes();
+        if (metaActual.Id <= 0)
+        {
+            mensaje = "Debe indicar un ID válido para actualizar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            var metaParaActualizar = new
+            {
+                IdObjetivo = metaActual.IdObjetivo,
+                Titulo = metaActual.Titulo,
+                Descripcion = metaActual.Descripcion
+            };
+
+            if (Vacio(metaParaActualizar))
+            {
+                return;
+            }
+
+            var cliente = fabricaHttp.CreateClient("ApiMetasEstrategicas");
+            var ruta = $"{urlBaseApi}/id/{metaActual.Id}";
+            var respuesta = await cliente.PutAsJsonAsync(ruta, metaParaActualizar);
+            
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Meta Estratégica actualizada correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarMetasEstrategicas();
+                existeMeta = true;
+                textoBotonGuardar = "Actualizar";
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"No se pudo actualizar la Meta Estratégica. Detalle: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al actualizar Meta Estratégica: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task EliminarMeta()
+    {
+        LimpiarMensajes();
+        if (metaActual.Id <= 0)
+        {
+            mensaje = "Debe indicar un ID válido para eliminar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiMetasEstrategicas");
+            var ruta = $"{urlBaseApi}/id/{metaActual.Id}";
+            var respuesta = await cliente.DeleteAsync(ruta);
+            
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Meta Estratégica eliminada correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarMetasEstrategicas();
+                LimpiarFormulario();
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"No se pudo eliminar la Meta Estratégica. Detalle: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al eliminar Meta Estratégica: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task ProbarConexion()
+    {
+        LimpiarMensajes();
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiMetasEstrategicas");
+            var respuesta = await cliente.GetAsync(urlBaseApi);
+            
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Conexión con la API verificada.";
+                claseAviso = "alert alert-success";
+            }
+            else
+            {
+                mensaje = $"La API respondió con estado {(int)respuesta.StatusCode}.";
+                claseAviso = "alert alert-warning";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error de conexión a la API: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private void CargarEnFormulario(MetaEstrategica meta)
+    {
+        metaActual = new MetaEstrategica
+        {
+            Id = meta.Id,
+            IdObjetivo = meta.IdObjetivo,
+            Titulo = meta.Titulo,
+            Descripcion = meta.Descripcion
+        };
+        existeMeta = true;
+        textoBotonGuardar = "Actualizar";
+        mensaje = "Meta Estratégica seleccionada desde el listado.";
+        claseAviso = "alert alert-info";
+    }
+
+    private void LimpiarMensajes()
+    {
+        mensaje = "";
+        claseAviso = "alert alert-info";
+    }
+
+    private void LimpiarFormulario()
+    {
+        metaActual = new MetaEstrategica();
+        existeMeta = false;
+        textoBotonGuardar = "Crear";
+        LimpiarMensajes();
+    }
+
+    private bool Vacio(dynamic m)
+    {
+        if (string.IsNullOrWhiteSpace(m.Titulo) || m.IdObjetivo <= 0)
+        {
+            mensaje = "Error: Titulo e IdObjetivo son obligatorios";
+            claseAviso = "alert alert-warning";
+            return true;
+        }
+        return false;
+    }
+}

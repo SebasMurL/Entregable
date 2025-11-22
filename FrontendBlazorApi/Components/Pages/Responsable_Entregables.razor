@@ -1,0 +1,343 @@
+@page "/responsable_entregables"
+
+@using System.Net.Http.Json
+@using FrontendBlazorApi.Models
+@inject IHttpClientFactory fabricaHttp
+@rendermode InteractiveServer
+
+<PageTitle>Gestión Responsable ↔ Entregable</PageTitle>
+
+<h3>Asociación Responsable ↔ Entregable</h3>
+
+<div class="mb-3 d-flex gap-2">
+    <button type="button" class="btn btn-outline-secondary" @onclick="ProbarConexion">Probar conexión</button>
+    <button type="button" class="btn btn-outline-primary" @onclick="CargarAsociaciones">Mostrar todas</button>
+    <button type="button" class="btn btn-outline-dark" @onclick="LimpiarFormulario">Limpiar</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(mensaje))
+{ <div class="@claseAviso" role="alert">@mensaje</div>
+}
+
+<h4>Formulario de Asociación Responsable - Entregable</h4>
+<EditForm Model="asociacionActual" OnValidSubmit="GuardarSegunEstado">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+```
+<div class="row g-3">
+    <div class="col-md-6">
+        <label class="form-label">Responsable</label>
+        <InputSelect class="form-control" @bind-Value="asociacionActual.IdResponsable">
+            <option value="">Seleccione un responsable</option>
+            @foreach (var responsable in listaResponsables)
+            {
+                <option value="@responsable.Id">@responsable.Nombre</option>
+            }
+        </InputSelect>
+    </div>
+
+    <div class="col-md-6">
+        <label class="form-label">Entregable</label>
+        <InputSelect class="form-control" @bind-Value="asociacionActual.IdEntregable">
+            <option value="">Seleccione un entregable</option>
+            @foreach (var entregable in listaEntregables)
+            {
+                <option value="@entregable.Id">@entregable.Titulo</option>
+            }
+        </InputSelect>
+    </div>
+
+    <div class="col-md-6">
+        <label class="form-label">Fecha de Asociación</label>
+        <InputDate class="form-control" @bind-Value="asociacionActual.FechaAsociacion" />
+    </div>
+</div>
+
+<div class="mt-3 d-flex flex-wrap gap-2">
+    <button type="submit" class="btn btn-primary">@textoBotonGuardar</button>
+    <button type="button" class="btn btn-secondary" @onclick="BuscarPorId">Buscar</button>
+    <button type="button" class="btn btn-danger" @onclick="EliminarAsociacion" disabled="@(!existeAsociacion)">Eliminar</button>
+</div>
+```
+
+</EditForm>
+
+<hr />
+
+@if (cargando)
+{ <p><em>Cargando asociaciones...</em></p>
+}
+else if (listaAsociaciones.Count == 0)
+{ <p>No hay asociaciones disponibles.</p>
+}
+else
+{ <table class="table table-striped"> <thead> <tr> <th>IdResponsable</th> <th>Responsable</th> <th>IdEntregable</th> <th>Entregable</th> <th>Fecha de Asociación</th> <th>Acciones</th> </tr> </thead> <tbody>
+@foreach (var a in listaAsociaciones)
+{ <tr> <td>@a.IdResponsable</td> <td>@ObtenerNombreResponsable(a.IdResponsable)</td> <td>@a.IdEntregable</td> <td>@ObtenerNombreEntregable(a.IdEntregable)</td> <td>@a.FechaAsociacion?.ToString("yyyy-MM-dd")</td> <td>
+<button type="button" class="btn btn-sm btn-outline-primary"
+@onclick="@(() => CargarEnFormulario(a))">Cargar</button> </td> </tr>
+} </tbody> </table>
+}
+
+@code {
+private List<Responsable_Entregable> listaAsociaciones = new();
+private List<Responsable> listaResponsables = new();
+private List<Entregable> listaEntregables = new();
+
+
+private Responsable_Entregable asociacionActual { get; set; } = new();
+private bool existeAsociacion = false;
+private string textoBotonGuardar = "Crear";
+private string mensaje = "";
+private string claseAviso = "alert alert-info";
+private bool cargando = false;
+private const string urlBaseApi = "api/responsable_entregable";
+
+protected override async Task OnInitializedAsync()
+{
+    await CargarAsociaciones();
+    await CargarResponsables();
+    await CargarEntregables();
+}
+
+private async Task CargarAsociaciones()
+{
+    try
+    {
+        cargando = true;
+        var cliente = fabricaHttp.CreateClient("ApiResponsable_Entregables");
+        var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<Responsable_Entregable>>>(urlBaseApi);
+        listaAsociaciones = respuesta?.Datos ?? new List<Responsable_Entregable>();
+        mensaje = $"Se cargaron {listaAsociaciones.Count} asociaciones.";
+        claseAviso = "alert alert-success";
+    }
+    catch (Exception e)
+    {
+        mensaje = $"Error al listar asociaciones: {e.Message}";
+        claseAviso = "alert alert-danger";
+    }
+    finally { cargando = false; }
+}
+
+private async Task CargarResponsables()
+{
+    try
+    {
+        var cliente = fabricaHttp.CreateClient("ApiResponsables");
+        var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<Responsable>>>("api/responsable");
+        listaResponsables = respuesta?.Datos ?? new List<Responsable>();
+    }
+    catch (Exception e)
+    {
+        mensaje = $"Error al cargar responsables: {e.Message}";
+        claseAviso = "alert alert-danger";
+    }
+}
+
+private async Task CargarEntregables()
+{
+    try
+    {
+        var cliente = fabricaHttp.CreateClient("ApiEntregables");
+        var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<Entregable>>>("api/entregable");
+        listaEntregables = respuesta?.Datos ?? new List<Entregable>();
+    }
+    catch (Exception e)
+    {
+        mensaje = $"Error al cargar entregables: {e.Message}";
+        claseAviso = "alert alert-danger";
+    }
+}
+
+private string ObtenerNombreResponsable(int id) =>
+    listaResponsables.FirstOrDefault(r => r.Id == id)?.Nombre ?? "No encontrado";
+
+private string ObtenerNombreEntregable(int id) =>
+    listaEntregables.FirstOrDefault(e => e.Id == id)?.Titulo ?? "No encontrado";
+
+private async Task BuscarPorId()
+{
+    LimpiarMensajes();
+    if (asociacionActual.IdResponsable <= 0 || asociacionActual.IdEntregable <= 0)
+    {
+        mensaje = "Debe indicar IdResponsable y IdEntregable válidos.";
+        claseAviso = "alert alert-warning";
+        return;
+    }
+
+    try
+    {
+        var cliente = fabricaHttp.CreateClient("ApiResponsable_Entregables");
+        var ruta = $"{urlBaseApi}/id/{asociacionActual.IdResponsable}/{asociacionActual.IdEntregable}";
+        var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<Responsable_Entregable>>>(ruta);
+        var encontrada = respuesta?.Datos?.FirstOrDefault();
+
+        if (encontrada is not null)
+        {
+            asociacionActual = encontrada;
+            existeAsociacion = true;
+            textoBotonGuardar = "Actualizar";
+            mensaje = "Asociación encontrada.";
+            claseAviso = "alert alert-success";
+        }
+        else
+        {
+            mensaje = "No se encontró la asociación.";
+            claseAviso = "alert alert-warning";
+        }
+    }
+    catch (Exception e)
+    {
+        mensaje = $"Error al buscar: {e.Message}";
+        claseAviso = "alert alert-danger";
+    }
+}
+
+private async Task GuardarSegunEstado()
+{
+    if (existeAsociacion)
+        await ActualizarAsociacion();
+    else
+        await CrearAsociacion();
+}
+
+private async Task CrearAsociacion()
+{
+    LimpiarMensajes();
+    try
+    {
+        var cliente = fabricaHttp.CreateClient("ApiResponsable_Entregables");
+        var respuesta = await cliente.PostAsJsonAsync(urlBaseApi, asociacionActual);
+        if (respuesta.IsSuccessStatusCode)
+        {
+            mensaje = "Asociación creada correctamente.";
+            claseAviso = "alert alert-success";
+            await CargarAsociaciones();
+            LimpiarFormulario();
+        }
+        else
+        {
+            mensaje = $"Error al crear: {await respuesta.Content.ReadAsStringAsync()}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+    catch (Exception e)
+    {
+        mensaje = $"Error al crear: {e.Message}";
+        claseAviso = "alert alert-danger";
+    }
+}
+
+private async Task ActualizarAsociacion()
+{
+    LimpiarMensajes();
+    try
+    {
+        var cliente = fabricaHttp.CreateClient("ApiResponsable_Entregables");
+        var ruta = $"{urlBaseApi}/id/{asociacionActual.IdResponsable}/{asociacionActual.IdEntregable}";
+        var respuesta = await cliente.PutAsJsonAsync(ruta, asociacionActual);
+        if (respuesta.IsSuccessStatusCode)
+        {
+            mensaje = "Asociación actualizada correctamente.";
+            claseAviso = "alert alert-success";
+            await CargarAsociaciones();
+        }
+        else
+        {
+            mensaje = $"Error al actualizar: {await respuesta.Content.ReadAsStringAsync()}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+    catch (Exception e)
+    {
+        mensaje = $"Error al actualizar: {e.Message}";
+        claseAviso = "alert alert-danger";
+    }
+}
+
+private async Task EliminarAsociacion()
+{
+    LimpiarMensajes();
+    if (asociacionActual.IdResponsable <= 0 || asociacionActual.IdEntregable <= 0)
+    {
+        mensaje = "Debe seleccionar un Responsable y un Entregable válidos.";
+        claseAviso = "alert alert-warning";
+        return;
+    }
+
+    try
+    {
+        var cliente = fabricaHttp.CreateClient("ApiResponsable_Entregables");
+        var ruta = $"{urlBaseApi}/id/{asociacionActual.IdResponsable}/{asociacionActual.IdEntregable}";
+        var respuesta = await cliente.DeleteAsync(ruta);
+        if (respuesta.IsSuccessStatusCode)
+        {
+            mensaje = "Asociación eliminada correctamente.";
+            claseAviso = "alert alert-success";
+            await CargarAsociaciones();
+            LimpiarFormulario();
+        }
+        else
+        {
+            mensaje = $"Error al eliminar: {await respuesta.Content.ReadAsStringAsync()}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+    catch (Exception e)
+    {
+        mensaje = $"Error al eliminar: {e.Message}";
+        claseAviso = "alert alert-danger";
+    }
+}
+
+private async Task ProbarConexion()
+{
+    LimpiarMensajes();
+    try
+    {
+        var cliente = fabricaHttp.CreateClient("ApiResponsable_Entregables");
+        var respuesta = await cliente.GetAsync(urlBaseApi);
+        if (respuesta.IsSuccessStatusCode)
+        {
+            mensaje = "Conexión con la API verificada.";
+            claseAviso = "alert alert-success";
+        }
+        else
+        {
+            mensaje = $"API respondió con estado {(int)respuesta.StatusCode}.";
+            claseAviso = "alert alert-warning";
+        }
+    }
+    catch (Exception e)
+    {
+        mensaje = $"Error de conexión: {e.Message}";
+        claseAviso = "alert alert-danger";
+    }
+}
+
+private void CargarEnFormulario(Responsable_Entregable a)
+{
+    asociacionActual = a;
+    existeAsociacion = true;
+    textoBotonGuardar = "Actualizar";
+    mensaje = "Asociación cargada en el formulario.";
+    claseAviso = "alert alert-info";
+}
+
+private void LimpiarFormulario()
+{
+    asociacionActual = new Responsable_Entregable();
+    existeAsociacion = false;
+    textoBotonGuardar = "Crear";
+    LimpiarMensajes();
+}
+
+private void LimpiarMensajes()
+{
+    mensaje = "";
+    claseAviso = "alert alert-info";
+}
+
+
+}

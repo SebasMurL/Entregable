@@ -1,0 +1,364 @@
+@page "/variableestrategicas"
+
+@using System.Net.Http.Json
+@using FrontendBlazorApi.Models
+@inject IHttpClientFactory fabricaHttp
+@rendermode InteractiveServer
+
+<PageTitle>Variables Estratégicas</PageTitle>
+
+<h3>Gestión de Variables Estratégicas</h3>
+
+<div class="mb-3 d-flex gap-2">
+    <button type="button" class="btn btn-outline-secondary" @onclick="ProbarConexion">Probar conexión</button>
+    <button type="button" class="btn btn-outline-primary" @onclick="CargarVariablesEstrategicas">Mostrar todos</button>
+    <button type="button" class="btn btn-outline-dark" @onclick="LimpiarFormulario">Limpiar</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(mensaje))
+{
+    <div class="@claseAviso" role="alert">@mensaje</div>
+}
+
+<h4>Formulario de Variable Estratégica</h4>
+<EditForm Model="variableEstrategicaActual" OnValidSubmit="GuardarSegunEstado" FormName="VariableEstrategicaForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label">ID</label>
+            <InputNumber class="form-control" @bind-Value="variableEstrategicaActual.Id" readonly="@existeVariableEstrategica" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Título</label>
+            <InputText class="form-control" @bind-Value="variableEstrategicaActual.Titulo" />
+        </div>
+        <div class="col-md-5">
+            <label class="form-label">Descripción</label>
+            <InputText class="form-control" @bind-Value="variableEstrategicaActual.Descripcion" />
+        </div>
+    </div>
+    <div class="mt-3 d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary">@textoBotonGuardar</button>
+        <button type="button" class="btn btn-secondary" @onclick="BuscarPorId">Buscar</button>
+        <button type="button" class="btn btn-danger" @onclick="EliminarVariableEstrategica" disabled="@(!existeVariableEstrategica)">Eliminar</button>
+    </div>
+</EditForm>
+
+<hr />
+
+@if (cargando)
+{
+    <p><em>Cargando variables estratégicas...</em></p>
+}
+else if (listaVariablesEstrategicas.Count == 0)
+{
+    <p>No hay variables estratégicas disponibles.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Título</th>
+                <th>Descripción</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var ve in listaVariablesEstrategicas)
+            {
+                <tr>
+                    <td>@ve.Id</td>
+                    <td>@ve.Titulo</td>
+                    <td>@ve.Descripcion</td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-outline-primary" 
+                                @onclick="@(() => CargarEnFormulario(ve))">
+                            Cargar
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<VariableEstrategica> listaVariablesEstrategicas = new();
+    [SupplyParameterFromForm]
+    private VariableEstrategica variableEstrategicaActual { get; set; } = new();
+    private bool existeVariableEstrategica = false;
+    private string textoBotonGuardar = "Crear";
+    private string mensaje = "";
+    private string claseAviso = "alert alert-info";
+    private bool cargando = false;
+    private const string urlBaseApi = "api/variableestrategica";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarVariablesEstrategicas();
+    }
+
+    private async Task CargarVariablesEstrategicas()
+    {
+        try
+        {
+            cargando = true;
+            var cliente = fabricaHttp.CreateClient("ApiVariableEstrategicas");
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<VariableEstrategica>>>(urlBaseApi);
+            listaVariablesEstrategicas = respuesta?.Datos ?? new List<VariableEstrategica>();
+            mensaje = $"Se cargaron {listaVariablesEstrategicas.Count} variable(s) estratégica(s).";
+            claseAviso = "alert alert-success";
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al listar variables estratégicas: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task BuscarPorId()
+    {
+        LimpiarMensajes();
+        if (variableEstrategicaActual.Id <= 0)
+        {
+            mensaje = "Debe indicar un ID válido para buscar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiVariableEstrategicas");
+            var ruta = $"{urlBaseApi}/id/{variableEstrategicaActual.Id}";
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<VariableEstrategica>>>(ruta);
+            var encontrado = respuesta?.Datos?.FirstOrDefault();
+
+            if (encontrado is not null)
+            {
+                variableEstrategicaActual = new VariableEstrategica
+                {
+                    Id = encontrado.Id,
+                    Titulo = encontrado.Titulo,
+                    Descripcion = encontrado.Descripcion
+                };
+                existeVariableEstrategica = true;
+                textoBotonGuardar = "Actualizar";
+                mensaje = "Variable estratégica cargada en el formulario.";
+                claseAviso = "alert alert-success";
+            }
+            else
+            {
+                existeVariableEstrategica = false;
+                textoBotonGuardar = "Crear";
+                mensaje = "Variable estratégica no encontrada.";
+                claseAviso = "alert alert-warning";
+            }
+        }
+        catch (Exception error)
+        {
+            existeVariableEstrategica = false;
+            textoBotonGuardar = "Crear";
+            mensaje = $"Error al buscar variable estratégica: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task GuardarSegunEstado()
+    {
+        if (existeVariableEstrategica)
+            await ActualizarVariableEstrategica();
+        else
+            await CrearVariableEstrategica();
+    }
+
+    private async Task CrearVariableEstrategica()
+    {
+        LimpiarMensajes();
+        try
+        {
+            
+            // Crear un objeto sin el campo Id para la solicitud POST
+            var variableEstrategicaParaCrear = new
+            {
+                Titulo = variableEstrategicaActual.Titulo,
+                Descripcion = variableEstrategicaActual.Descripcion
+            };
+            if(Vacio(variableEstrategicaParaCrear))
+            {
+                return;
+            }
+            var cliente = fabricaHttp.CreateClient("ApiVariableEstrategicas");
+            var respuesta = await cliente.PostAsJsonAsync(urlBaseApi, variableEstrategicaParaCrear);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Variable estratégica creada correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarVariablesEstrategicas();
+                LimpiarFormulario();
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"No se pudo crear la variable estratégica. Detalle: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al crear variable estratégica: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task ActualizarVariableEstrategica()
+    {
+        LimpiarMensajes();
+        if (variableEstrategicaActual.Id <= 0)
+        {
+            mensaje = "Debe indicar un ID válido para actualizar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+        
+        try
+        {
+            // Crear un objeto sin el campo Id para la solicitud PUT
+            var variableEstrategicaParaActualizar = new
+            {
+                Titulo = variableEstrategicaActual.Titulo,
+                Descripcion = variableEstrategicaActual.Descripcion
+            };
+            if(Vacio(variableEstrategicaParaActualizar))
+            {
+                return;
+            }
+            var cliente = fabricaHttp.CreateClient("ApiVariableEstrategicas");
+            var ruta = $"{urlBaseApi}/id/{variableEstrategicaActual.Id}";
+            var respuesta = await cliente.PutAsJsonAsync(ruta, variableEstrategicaParaActualizar);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Variable estratégica actualizada correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarVariablesEstrategicas();
+                existeVariableEstrategica = true;
+                textoBotonGuardar = "Actualizar";
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"No se pudo actualizar la variable estratégica. Detalle: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al actualizar variable estratégica: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task EliminarVariableEstrategica()
+    {
+        LimpiarMensajes();
+        if (variableEstrategicaActual.Id <= 0)
+        {
+            mensaje = "Debe indicar un ID válido para eliminar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiVariableEstrategicas");
+            var ruta = $"{urlBaseApi}/id/{variableEstrategicaActual.Id}";
+            var respuesta = await cliente.DeleteAsync(ruta);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Variable estratégica eliminada correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarVariablesEstrategicas();
+                LimpiarFormulario();
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"No se pudo eliminar la variable estratégica. Detalle: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al eliminar variable estratégica: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task ProbarConexion()
+    {
+        LimpiarMensajes();
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiVariableEstrategicas");
+            var respuesta = await cliente.GetAsync(urlBaseApi);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Conexión con la API verificada.";
+                claseAviso = "alert alert-success";
+            }
+            else
+            {
+                mensaje = $"La API respondió con estado {(int)respuesta.StatusCode}.";
+                claseAviso = "alert alert-warning";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error de conexión a la API: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private void CargarEnFormulario(VariableEstrategica ve)
+    {
+        variableEstrategicaActual = new VariableEstrategica
+        {
+            Id = ve.Id,
+            Titulo = ve.Titulo,
+            Descripcion = ve.Descripcion
+        };
+        existeVariableEstrategica = true;
+        textoBotonGuardar = "Actualizar";
+        mensaje = "Variable estratégica seleccionada desde el listado.";
+        claseAviso = "alert alert-info";
+    }
+
+    private void LimpiarMensajes()
+    {
+        mensaje = "";
+        claseAviso = "alert alert-info";
+    }
+
+    private void LimpiarFormulario()
+    {
+        variableEstrategicaActual = new VariableEstrategica();
+        existeVariableEstrategica = false;
+        textoBotonGuardar = "Crear";
+        LimpiarMensajes();
+    }
+    private bool Vacio(dynamic p)
+    {
+        if(string.IsNullOrWhiteSpace(p.Titulo)||string.IsNullOrWhiteSpace(p.Descripcion))
+        {
+            mensaje="Error: Campo Vacio";
+            return true;
+        }
+        return false;
+    }
+}
