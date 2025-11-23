@@ -12,11 +12,17 @@ using Microsoft.Extensions.DependencyInjection;
 // Importa utilidades para detectar el entorno (Desarrollo, Producción, etc.).
 using Microsoft.Extensions.Hosting;
 
+// Importa utilidades para leer configuraciones desde archivos JSON.
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using webapicsharp.Modelos; // donde está ConfiguracionJwt
+
 // Crea el "builder": punto de inicio para configurar servicios y la aplicación.
 var builder = WebApplication.CreateBuilder(args);
 
 // ---------------------------------------------------------
-// CONFIGURACIÓN (OCP: se puede extender sin tocar la lógica)
+// CONFIGURACÓN (OCP: se puede extender sin tocar la lógica)
 // ---------------------------------------------------------
 
 // Agrega un archivo JSON opcional para configuraciones adicionales.
@@ -66,27 +72,136 @@ builder.Services.AddSession(opciones =>
 // Agrega servicios para exponer documentación Swagger/OpenAPI.
 // Útil para probar endpoints manualmente mientras no existe frontend.
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+
+// Configuración avanzada de Swagger para mostrar el botón "Authorize"
+builder.Services.AddSwaggerGen(opciones =>
+{
+    opciones.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "API Genérica CRUD Multi-Base de Datos",
+        Version = "v1",
+        Description = "API REST genérica para operaciones CRUD sobre cualquier tabla. Soporta SQL Server, PostgreSQL, MySQL y MariaDB. Incluye autenticación JWT y acceso dinámico configurado por tabla."
+    });
+
+    // Define el esquema de seguridad JWT
+    var esquemaSeguridad = new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description = "Ingrese el token con el prefijo 'Bearer'. Ejemplo: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    };
+
+    // Añade la definición del esquema
+    opciones.AddSecurityDefinition("Bearer", esquemaSeguridad);
+
+    // Indica que todos los endpoints usan este esquema por defecto
+    opciones.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
+    });
+});
+
 
 // -----------------------------------------------------------------
-// NOTA DIP: el registro de interfaces → implementaciones irá aquí.
-// Ejemplos (se dejan comentados hasta el siguiente paso):
+// REGISTRO DE SERVICIOS (Dependency Injection - DIP)
+// -----------------------------------------------------------------
+// Esta sección registra todas las abstracciones (interfaces) con sus implementaciones concretas.
+// El contenedor de inyección de dependencias de ASP.NET Core resolverá automáticamente
+// las dependencias cuando sean necesarias.
 //
-// builder.Services.AddScoped<IServicioCrud, ServicioCrud>();
-// builder.Services.AddScoped<IRepositorioLecturaTabla, RepositorioLecturaSql>();
-// builder.Services.AddSingleton<IValidadorIdentificadorSql, ValidadorIdentificadorSql>();
-// builder.Services.AddSingleton<IPoliticaTablasProhibidas, PoliticaTablasProhibidas>();
+// TIPOS DE REGISTRO:
+// - AddSingleton: Una instancia para toda la aplicación (compartida entre requests)
+// - AddScoped: Una instancia por request HTTP (se crea y destruye con cada petición)
+// - AddTransient: Una instancia nueva cada vez que se solicita
 // -----------------------------------------------------------------
 
-// REGISTRO DE SERVICIO CRUD (DIP): interfaz → implementación (una instancia por request)
-builder.Services.AddScoped<webapicsharp.Servicios.Abstracciones.IServicioCrud,
-                           webapicsharp.Servicios.ServicioCrud>();
+// -----------------------------------------------------------------
+// REGISTRO DE POLÍTICA DE TABLAS PROHIBIDAS (MEJORA ARQUITECTÓNICA)
+// -----------------------------------------------------------------
+// NUEVO: Registro de la política que determina qué tablas están permitidas/prohibidas.
+//
+// MEJORA ARQUITECTÓNICA - POR QUÉ ESTO ES IMPORTANTE PARA TUS ESTUDIANTES:
+// Antes: ServicioCrud dependía directamente de IConfiguration (violaba DIP)
+// Ahora: ServicioCrud depende de IPoliticaTablasProhibidas (cumple DIP perfectamente)
+//
+// BENEFICIOS DE ESTA MEJORA:
+// 1. SEPARACIÓN DE RESPONSABILIDADES (SRP):
+//    - ServicioCrud solo se encarga de lógica de negocio CRUD
+//    - PoliticaTablasProhibidasDesdeJson se encarga de leer configuración
+//    - Cada clase tiene una responsabilidad única y bien definida
+//
+// 2. INVERSIÓN DE DEPENDENCIAS (DIP):
+//    - ServicioCrud (módulo de alto nivel) NO depende de IConfiguration (detalle de implementación)
+//    - Ambos dependen de IPoliticaTablasProhibidas (abstracción del dominio)
+//    - Cumple perfectamente el principio: "depende de abstracciones, no de implementaciones"
+//
+// 3. ABIERTO/CERRADO (OCP):
+//    - Podemos cambiar cómo se leen las tablas prohibidas sin modificar ServicioCrud
+//    - Podemos crear PoliticaTablasProhibidasDesdeBaseDatos mañana
+//    - ServicioCrud está cerrado para modificación, abierto para extensión
+//
+// 4. TESTABILIDAD:
+//    - Fácil crear mocks de IPoliticaTablasProhibidas para testing
+//    - No necesitas configurar IConfiguration completo en tests
+//    - Tests más simples y más rápidos
+//
+// POR QUÉ AddSingleton:
+// - La configuración de tablas prohibidas no cambia durante la ejecución de la aplicación
+// - Queremos una sola instancia compartida por todos los requests (mejor performance)
+// - No tiene estado mutable, es thread-safe (solo lee configuración una vez en el constructor)
+// - Reduce overhead de crear instancias en cada request
+//
+// ARQUITECTURA DE DEPENDENCIAS:
+// ServicioCrud → IPoliticaTablasProhibidas → PoliticaTablasProhibidasDesdeJson → IConfiguration
+// (Lógica de      (Abstracción              (Implementación                      (Infraestructura
+//  negocio)        del dominio)               concreta)                            de config)
+builder.Services.AddSingleton<
+    webapicsharp.Servicios.Abstracciones.IPoliticaTablasProhibidas,
+    webapicsharp.Servicios.Politicas.PoliticaTablasProhibidasDesdeJson>();
 
-// REGISTRO DEL PROVEEDOR DE CONEXIÓN (DIP):
-// Cuando se solicite IProveedorConexion, el contenedor entregará ProveedorConexion.
-// NOTA: IProveedorConexion ahora está en Servicios.Abstracciones
-builder.Services.AddSingleton<webapicsharp.Servicios.Abstracciones.IProveedorConexion,
-                              webapicsharp.Servicios.Conexion.ProveedorConexion>();
+// -----------------------------------------------------------------
+// REGISTRO DE SERVICIO CRUD (DIP)
+// -----------------------------------------------------------------
+// Registra el servicio principal de lógica de negocio CRUD.
+// AddScoped: Una instancia por request HTTP (patrón común para servicios de negocio)
+//
+// DEPENDENCIAS DE ServicioCrud:
+// - IRepositorioLecturaTabla: Para acceder a datos (se registra más abajo según DatabaseProvider)
+// - IPoliticaTablasProhibidas: Para validar tablas permitidas (registrado arriba)
+//
+// El contenedor DI inyectará automáticamente ambas dependencias cuando cree ServicioCrud.
+builder.Services.AddScoped<
+    webapicsharp.Servicios.Abstracciones.IServicioCrud,
+    webapicsharp.Servicios.ServicioCrud>();
+
+// -----------------------------------------------------------------
+// REGISTRO DEL PROVEEDOR DE CONEXIÓN (DIP)
+// -----------------------------------------------------------------
+// Registra el proveedor que entrega cadenas de conexión a la base de datos.
+// AddSingleton: La configuración de conexión no cambia durante la ejecución.
+//
+// RESPONSABILIDAD:
+// - Lee "DatabaseProvider" y "ConnectionStrings" de appsettings.json
+// - Proporciona la cadena de conexión correcta según el proveedor configurado
+// - Encapsula toda la lógica de configuración de conexiones
+//
+// NOTA: IProveedorConexion está en Servicios.Abstracciones (parte del dominio, no infraestructura)
+builder.Services.AddSingleton<
+    webapicsharp.Servicios.Abstracciones.IProveedorConexion,
+    webapicsharp.Servicios.Conexion.ProveedorConexion>();
 
 // REGISTRO AUTOMÁTICO DEL REPOSITORIO SEGÚN DatabaseProvider (DIP + OCP)
 // La API genérica lee la configuración y usa el proveedor correcto automáticamente
@@ -111,11 +226,13 @@ switch (proveedorBD.ToLower())
 {
     case "postgres":
         // Usar PostgreSQL cuando DatabaseProvider = "Postgres"
-        builder.Services.AddScoped<webapicsharp.Repositorios.Abstracciones.IRepositorioLecturaTabla,
+                builder.Services.AddScoped<webapicsharp.Repositorios.Abstracciones.IRepositorioLecturaTabla,
                                            webapicsharp.Repositorios.RepositorioLecturaPostgreSQL>();
         // Repositorio de consultas para PostgreSQL (necesario porque IServicioConsultas se registra global)
-        builder.Services.AddScoped<webapicsharp.Repositorios.Abstracciones.IRepositorioConsultas,
-            webapicsharp.Repositorios.RepositorioConsultasPostgreSQL>();                                           
+        builder.Services.AddScoped<
+            webapicsharp.Repositorios.Abstracciones.IRepositorioConsultas,
+            webapicsharp.Repositorios.RepositorioConsultasPostgreSQL
+        >();                                           
         break;
     case "mariadb":
     case "mysql":
@@ -148,6 +265,42 @@ switch (proveedorBD.ToLower())
 
         break;
 }
+
+// Nueva sección para JWT
+// ---------------------------------------------------------
+// CONFIGURACIÓN JWT (para autenticación segura con tokens)
+// ---------------------------------------------------------
+
+// Vincula la sección "Jwt" del archivo appsettings.Development.json a la clase ConfiguracionJwt.
+builder.Services.Configure<ConfiguracionJwt>(
+    builder.Configuration.GetSection("Jwt")
+);
+
+// Crea una instancia temporal con la configuración de JWT.
+var configuracionJwt = new ConfiguracionJwt();
+builder.Configuration.GetSection("Jwt").Bind(configuracionJwt);
+
+// Registra el servicio de autenticación basado en JWT Bearer.
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(opciones =>
+    {
+        // Define las reglas de validación del token.
+        opciones.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true, // Valida el emisor del token.
+            ValidateAudience = true, // Valida el público objetivo.
+            ValidateLifetime = true, // Valida que no esté expirado.
+            ValidateIssuerSigningKey = true, // Valida la firma.
+            ValidIssuer = configuracionJwt.Issuer, // Emisor válido.
+            ValidAudience = configuracionJwt.Audience, // Audiencia válida.
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(configuracionJwt.Key) // Clave secreta.
+            )
+        };
+    });
+
+// También registra la configuración de JWT para inyección de dependencias si se necesita en otros lugares.
+builder.Services.Configure<ConfiguracionJwt>(builder.Configuration.GetSection("Jwt"));
 
 
 // Construye la aplicación con todo lo configurado arriba.
@@ -183,6 +336,11 @@ app.UseCors("PermitirTodo");
 
 // Habilita la sesión HTTP (si no se usa, se puede quitar sin tocar controladores).
 app.UseSession();
+
+//nueva línesa para jwt
+// Activa la autenticación JWT antes de aplicar la autorización.
+app.UseAuthentication();
+
 
 // Agrega el middleware de autorización (para cuando existan endpoints protegidos).
 app.UseAuthorization();
