@@ -6,8 +6,16 @@
     </div>
 
     <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        <!-- Header Superior con Menú de Usuario -->
+        <div class="top-row px-4 d-flex justify-content-between align-items-center">
+            <div>
+                <a href="/" class="text-decoration-none">
+                    <i class="bi bi-house-door me-1"></i>
+                    <span class="d-none d-md-inline">Inicio</span>
+                </a>
+            </div>
+
+            <UserBar />
         </div>
 
         <article class="content px-4">

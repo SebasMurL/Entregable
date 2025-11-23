@@ -1,0 +1,75 @@
+@inject NavigationManager Navigation
+@inject FrontendBlazorApi.Servicios.ServicioAutenticacion servicioAuth
+@rendermode InteractiveServer
+
+<div class="d-flex align-items-center gap-2">
+    <!-- Usuario actual (siempre visible) -->
+    <span class="text-muted">
+        <i class="bi bi-person-circle me-1"></i>
+        @usuarioEmail
+    </span>
+
+    @if (string.IsNullOrWhiteSpace(usuarioEmail) || usuarioEmail == "Invitado")
+    {
+        <!-- Botón para iniciar sesión cuando NO hay sesión -->
+        <a href="/login" class="btn btn-primary btn-sm">
+            <i class="bi bi-box-arrow-in-right me-1"></i>
+            Iniciar Sesión
+        </a>
+    }
+    else
+    {
+        <!-- Botón para cerrar sesión cuando SÍ hay sesión -->
+        <button class="btn btn-danger btn-sm" @onclick="CerrarSesion">
+            <i class="bi bi-box-arrow-right me-1"></i>
+            Cerrar Sesión
+        </button>
+    }
+</div>
+
+@code {
+    private string usuarioEmail = "Invitado";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await CargarDatosUsuario();
+            StateHasChanged();
+        }
+    }
+
+    private async Task CargarDatosUsuario()
+    {
+        try
+        {
+            var email = await servicioAuth.ObtenerEmailUsuarioAsync();
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                usuarioEmail = email;
+            }
+        }
+        catch
+        {
+            usuarioEmail = "Invitado";
+        }
+    }
+
+    private async Task CerrarSesion()
+    {
+        try
+        {
+            // Usar ServicioAutenticacion centralizado para manejar el logout completo
+            await servicioAuth.CerrarSesionAsync();
+
+            // Redirigir al login con force reload
+            Navigation.NavigateTo("/login", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            // Si falla el cierre de sesión normal, forzar recarga
+            Console.WriteLine($"Error al cerrar sesión: {ex.Message}");
+            Navigation.NavigateTo("/login", forceLoad: true);
+        }
+    }
+}

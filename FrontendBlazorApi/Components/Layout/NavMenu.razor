@@ -1,31 +1,41 @@
-﻿@* 
+﻿@*
     NavMenu.razor
     Este componente define el menú lateral de navegación de la aplicación.
     Aquí se colocan los enlaces a las distintas páginas (componentes .razor).
-    Por defecto la plantilla incluye: Home, Counter y Weather.
-    Se ha eliminado Weather porque era un ejemplo de la plantilla.
-    Más adelante aquí se agregará el acceso a la página de Productos.
+    Las secciones son colapsables para mejor organización.
 *@
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">Proyecto De Aula</a>
+        <a class="navbar-brand" href="">FrontendBlazorApi</a>
         <button title="Toggle navigation" class="navbar-toggler" @onclick="ToggleNavMenu">
             <span class="navbar-toggler-icon"></span>
         </button>
     </div>
 </div>
 
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+<div class="@NavMenuCssClass nav-scrollable">
     <nav class="flex-column">
         @* Enlace a la página Home (Index) *@
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Inicio
+                <span class="oi oi-home" aria-hidden="true"></span> Home
             </NavLink>
         </div>
-                
+
+        @* ========================================================================= *@
+        @* SECCIÓN COLAPSABLE: CATÁLOGOS BASE *@
+        @* ========================================================================= *@
         <div class="nav-item px-3">
+            <div class="nav-section-header" @onclick="() => ToggleSeccion(1)" @onclick:stopPropagation="true">
+                <i class="bi bi-database me-2"></i>Usuario Logeado
+                <i class="bi @(seccionesColapsadas[1] ? "bi-chevron-down" : "bi-chevron-up") float-end"></i>
+            </div>
+        </div>
+
+        @if (!seccionesColapsadas[1])
+        {
+          <div class="nav-item px-3">
             <NavLink class="nav-link" href="usuarios">
                 <span class="bi bi-Usuario" aria-hidden="true"></span> Usuarios
             </NavLink>
@@ -143,13 +153,51 @@
         <span class="bi bi-VaEstrategica" aria-hidden="true"></span> ejecucionpresupuestos
       </NavLink>
      </div>
+        }
 
+        @* ========================================================================= *@
+        @* SECCIÓN COLAPSABLE: GESTIÓN COMERCIAL *@
+        @* ========================================================================= *@
+        <div class="nav-item px-3">
+            <div class="nav-section-header" @onclick="() => ToggleSeccion(2)" @onclick:stopPropagation="true">
+                <i class="bi bi-briefcase me-2"></i>
+                <i class="bi @(seccionesColapsadas[2] ? "bi-chevron-down" : "bi-chevron-up") float-end"></i>
+            </div>
+        </div>
+
+        @if (!seccionesColapsadas[2])
+        {
+        }
+
+        @* ========================================================================= *@
+        @* SECCIÓN COLAPSABLE: SEGURIDAD *@
+        @* ========================================================================= *@
+        <div class="nav-item px-3">
+            <div class="nav-section-header" @onclick="() => ToggleSeccion(3)" @onclick:stopPropagation="true">
+                <i class="bi bi-shield-lock me-2"></i>
+                <i class="bi @(seccionesColapsadas[3] ? "bi-chevron-down" : "bi-chevron-up") float-end"></i>
+            </div>
+        </div>
+
+        @if (!seccionesColapsadas[3])
+        {
+        }
 
     </nav>
 </div>
 
 @code {
+    // Variable para controlar el colapso del menú completo (hamburguesa)
     private bool colapsado = true;
+
+    // Diccionario para controlar el estado colapsado de cada sección
+    // Clave: número de sección, Valor: true=colapsada, false=expandida
+    private Dictionary<int, bool> seccionesColapsadas = new()
+    {
+        { 1, false },  // Catálogos Base - colapsada por defecto
+        { 2, true }, // Gestión Comercial - expandida por defecto
+        { 3, true }  // Seguridad - expandida por defecto
+    };
 
     /*
         Propiedad que define la clase CSS aplicada al contenedor del menú.
@@ -163,8 +211,23 @@
     */
     private string? NavMenuCssClass => colapsado ? "collapse" : null;
 
+    /// <summary>
+    /// Alterna el estado del menú completo (para modo móvil).
+    /// </summary>
     private void ToggleNavMenu()
     {
         colapsado = !colapsado;
+    }
+
+    /// <summary>
+    /// Alterna el estado de una sección específica (colapsar/expandir).
+    /// </summary>
+    /// <param name="numeroSeccion">Identificador de la sección (1, 2, 3, 4...)</param>
+    private void ToggleSeccion(int numeroSeccion)
+    {
+        if (seccionesColapsadas.ContainsKey(numeroSeccion))
+        {
+            seccionesColapsadas[numeroSeccion] = !seccionesColapsadas[numeroSeccion];
+        }
     }
 }

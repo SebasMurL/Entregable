@@ -177,7 +177,8 @@ namespace webapicsharp.Controllers
         /// 
         /// Todas las respuestas incluyen información estructurada para facilitar el uso de la API.
         /// </returns>
-        [AllowAnonymous]                                  // Permite acceso sin autenticación (apropiado para desarrollo)
+        //[AllowAnonymous]                                  // Permite acceso sin autenticación (apropiado para desarrollo)
+        [Authorize]
         [HttpGet]                                        // Responde exclusivamente a peticiones HTTP GET
         public async Task<IActionResult> ListarAsync(
             string tabla,                                 // Del path de la URL: /api/{tabla}
@@ -381,16 +382,39 @@ namespace webapicsharp.Controllers
                     tabla              // Tabla donde ocurrió el error crítico
                 );
 
-                // Respuesta 500 Internal Server Error
-                // NO se exponen detalles internos por seguridad (evita information disclosure)
-                // Se proporciona información mínima pero útil para el usuario
+                // Construir mensaje de error más informativo para debugging
+                var detalleError = new System.Text.StringBuilder();
+                detalleError.AppendLine($"Tipo de error: {excepcionGeneral.GetType().Name}");
+                detalleError.AppendLine($"Mensaje: {excepcionGeneral.Message}");
+
+                if (excepcionGeneral.InnerException != null)
+                {
+                    detalleError.AppendLine($"Error interno: {excepcionGeneral.InnerException.Message}");
+                }
+
+                // Agregar información del stack trace (solo las primeras 3 líneas para no saturar)
+                if (!string.IsNullOrEmpty(excepcionGeneral.StackTrace))
+                {
+                    var stackLines = excepcionGeneral.StackTrace.Split('\n').Take(3);
+                    detalleError.AppendLine("Stack trace:");
+                    foreach (var line in stackLines)
+                    {
+                        detalleError.AppendLine($"  {line.Trim()}");
+                    }
+                }
+
+                // Respuesta 500 Internal Server Error con detalles útiles
                 return StatusCode(500, new
                 {
                     estado = 500,                                        // Código de estado HTTP explícito
-                    mensaje = "Error interno del servidor.",             // Mensaje genérico y seguro para el usuario
-                    tabla = tabla,                                       // Solo contexto básico necesario
-                    detalle = "Contacte al administrador del sistema.", // Instrucción clara para el usuario
-                    timestamp = DateTime.UtcNow                          // Timestamp para correlación con logs del servidor
+                    mensaje = "Error interno del servidor al consultar tabla.",
+                    tabla = tabla,                                       // Contexto de la operación
+                    tipoError = excepcionGeneral.GetType().Name,        // Tipo de excepción
+                    detalle = excepcionGeneral.Message,                 // Mensaje principal
+                    detalleCompleto = detalleError.ToString(),          // Desglose completo
+                    errorInterno = excepcionGeneral.InnerException?.Message,
+                    timestamp = DateTime.UtcNow,                        // Timestamp para correlación
+                    sugerencia = "Revise los logs del servidor para más detalles o contacte al administrador."
                 });
             }
         }
@@ -402,7 +426,8 @@ namespace webapicsharp.Controllers
         /// Ejemplo: GET /api/factura/numero/1
         /// Con esquema: GET /api/factura/numero/1?esquema=ventas
         /// </summary>
-        [AllowAnonymous]
+        //[AllowAnonymous]
+        //[Authorize]
         [HttpGet("{nombreClave}/{valor}")]
         public async Task<IActionResult> ObtenerPorClaveAsync(
         string tabla,           // Del path: /api/{tabla}
@@ -489,12 +514,24 @@ namespace webapicsharp.Controllers
                     tabla, nombreClave, valor
                 );
 
+                var detalleError = new System.Text.StringBuilder();
+                detalleError.AppendLine($"Tipo: {excepcionGeneral.GetType().Name}");
+                detalleError.AppendLine($"Mensaje: {excepcionGeneral.Message}");
+                if (excepcionGeneral.InnerException != null)
+                    detalleError.AppendLine($"Error interno: {excepcionGeneral.InnerException.Message}");
+
                 return StatusCode(500, new
                 {
                     estado = 500,
-                    mensaje = "Error interno del servidor.",
+                    mensaje = "Error interno del servidor al filtrar registros.",
                     tabla = tabla,
-                    timestamp = DateTime.UtcNow
+                    filtro = $"{nombreClave} = {valor}",
+                    tipoError = excepcionGeneral.GetType().Name,
+                    detalle = excepcionGeneral.Message,
+                    detalleCompleto = detalleError.ToString(),
+                    errorInterno = excepcionGeneral.InnerException?.Message,
+                    timestamp = DateTime.UtcNow,
+                    sugerencia = "Revise los logs para más detalles."
                 });
             }
         }
@@ -613,12 +650,23 @@ namespace webapicsharp.Controllers
                     tabla
                 );
 
+                var detalleError = new System.Text.StringBuilder();
+                detalleError.AppendLine($"Tipo: {excepcionGeneral.GetType().Name}");
+                detalleError.AppendLine($"Mensaje: {excepcionGeneral.Message}");
+                if (excepcionGeneral.InnerException != null)
+                    detalleError.AppendLine($"Error interno: {excepcionGeneral.InnerException.Message}");
+
                 return StatusCode(500, new
                 {
                     estado = 500,
-                    mensaje = "Error interno del servidor.",
+                    mensaje = "Error interno del servidor al crear registro.",
                     tabla = tabla,
-                    timestamp = DateTime.UtcNow
+                    tipoError = excepcionGeneral.GetType().Name,
+                    detalle = excepcionGeneral.Message,
+                    detalleCompleto = detalleError.ToString(),
+                    errorInterno = excepcionGeneral.InnerException?.Message,
+                    timestamp = DateTime.UtcNow,
+                    sugerencia = "Revise los logs para más detalles."
                 });
             }
         }
@@ -752,13 +800,24 @@ namespace webapicsharp.Controllers
                     tabla, nombreClave, valorClave
                 );
 
+                var detalleError = new System.Text.StringBuilder();
+                detalleError.AppendLine($"Tipo: {excepcionGeneral.GetType().Name}");
+                detalleError.AppendLine($"Mensaje: {excepcionGeneral.Message}");
+                if (excepcionGeneral.InnerException != null)
+                    detalleError.AppendLine($"Error interno: {excepcionGeneral.InnerException.Message}");
+
                 return StatusCode(500, new
                 {
                     estado = 500,
-                    mensaje = "Error interno del servidor.",
+                    mensaje = "Error interno del servidor al actualizar registro.",
                     tabla = tabla,
                     filtro = $"{nombreClave} = {valorClave}",
-                    timestamp = DateTime.UtcNow
+                    tipoError = excepcionGeneral.GetType().Name,
+                    detalle = excepcionGeneral.Message,
+                    detalleCompleto = detalleError.ToString(),
+                    errorInterno = excepcionGeneral.InnerException?.Message,
+                    timestamp = DateTime.UtcNow,
+                    sugerencia = "Revise los logs para más detalles."
                 });
             }
         }
@@ -876,13 +935,24 @@ namespace webapicsharp.Controllers
                     tabla, nombreClave, valorClave
                 );
 
+                var detalleError = new System.Text.StringBuilder();
+                detalleError.AppendLine($"Tipo: {excepcionGeneral.GetType().Name}");
+                detalleError.AppendLine($"Mensaje: {excepcionGeneral.Message}");
+                if (excepcionGeneral.InnerException != null)
+                    detalleError.AppendLine($"Error interno: {excepcionGeneral.InnerException.Message}");
+
                 return StatusCode(500, new
                 {
                     estado = 500,
-                    mensaje = "Error interno del servidor.",
+                    mensaje = "Error interno del servidor al eliminar registro.",
                     tabla = tabla,
                     filtro = $"{nombreClave} = {valorClave}",
-                    timestamp = DateTime.UtcNow
+                    tipoError = excepcionGeneral.GetType().Name,
+                    detalle = excepcionGeneral.Message,
+                    detalleCompleto = detalleError.ToString(),
+                    errorInterno = excepcionGeneral.InnerException?.Message,
+                    timestamp = DateTime.UtcNow,
+                    sugerencia = "Revise los logs para más detalles."
                 });
             }
         }
@@ -1050,7 +1120,7 @@ namespace webapicsharp.Controllers
                 _ => elemento.ToString()
             };
         }
-        
+
         /// <summary>
         /// Verifica las credenciales de un usuario comparando contraseña con hash almacenado.
         /// 
@@ -1102,7 +1172,7 @@ namespace webapicsharp.Controllers
                 var parametrosRequeridos = new[] { "campoUsuario", "campoContrasena", "valorUsuario", "valorContrasena" };
                 foreach (var parametro in parametrosRequeridos)
                 {
-                    if (!datosConvertidos.ContainsKey(parametro) || 
+                    if (!datosConvertidos.ContainsKey(parametro) ||
                         string.IsNullOrWhiteSpace(datosConvertidos[parametro]?.ToString()))
                     {
                         return BadRequest(new
@@ -1140,7 +1210,7 @@ namespace webapicsharp.Controllers
                             "ÉXITO autenticación - Usuario {Usuario} autenticado correctamente en tabla {Tabla}",
                             valorUsuario, tabla
                         );
-                        
+
                         return Ok(new
                         {
                             estado = 200,
@@ -1155,7 +1225,7 @@ namespace webapicsharp.Controllers
                             "FALLO autenticación - Usuario {Usuario} no encontrado en tabla {Tabla}",
                             valorUsuario, tabla
                         );
-                        
+
                         return NotFound(new
                         {
                             estado = 404,
@@ -1170,7 +1240,7 @@ namespace webapicsharp.Controllers
                             "FALLO autenticación - Contraseña incorrecta para usuario {Usuario} en tabla {Tabla}",
                             valorUsuario, tabla
                         );
-                        
+
                         return Unauthorized(new
                         {
                             estado = 401,
@@ -1217,16 +1287,28 @@ namespace webapicsharp.Controllers
                     tabla
                 );
 
+                var detalleError = new System.Text.StringBuilder();
+                detalleError.AppendLine($"Tipo: {excepcionGeneral.GetType().Name}");
+                detalleError.AppendLine($"Mensaje: {excepcionGeneral.Message}");
+                if (excepcionGeneral.InnerException != null)
+                    detalleError.AppendLine($"Error interno: {excepcionGeneral.InnerException.Message}");
+
                 return StatusCode(500, new
                 {
                     estado = 500,
-                    mensaje = "Error interno del servidor.",
+                    mensaje = "Error interno del servidor al verificar credenciales.",
                     tabla = tabla,
-                    timestamp = DateTime.UtcNow
+                    tipoError = excepcionGeneral.GetType().Name,
+                    detalle = excepcionGeneral.Message,
+                    detalleCompleto = detalleError.ToString(),
+                    errorInterno = excepcionGeneral.InnerException?.Message,
+                    timestamp = DateTime.UtcNow,
+                    sugerencia = "Revise los logs para más detalles."
                 });
             }
         }
-// aquí se puede agregar más endpoints en el futuro (DELETE, PATCH, etc.)
+
+        // aquí se puede agregar más endpoints en el futuro (DELETE, PATCH, etc.)
 
     }
 }
