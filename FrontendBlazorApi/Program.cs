@@ -220,7 +220,8 @@ builder.Services.AddHttpClient("ApiObjetivosEstrategicos", cliente =>
 {
     cliente.BaseAddress = new Uri("http://localhost:5031/");
 });
-builder.Services.AddHttpClient("ApiMeta_Proyectos", cliente =>
+// Rename client to ApiMetaProyectos (was ApiMeta_Proyectos) to match usages in components
+builder.Services.AddHttpClient("ApiMetaProyectos", cliente =>
 {
     cliente.BaseAddress = new Uri("http://localhost:5031/");
 });
@@ -498,7 +499,7 @@ app.UseHttpsRedirection();
 /// - Fuentes: WOFF, TTF (wwwroot/fonts/*)
 /// - Otros: PDF, TXT, JSON, etc.
 ///
-/// MAPEO DE URLs:
+/// MAPEO DE URLS:
 /// - wwwroot/css/app.css → https://miapp.com/css/app.css
 /// - wwwroot/images/logo.png → https://miapp.com/images/logo.png
 /// - wwwroot/js/site.js → https://miapp.com/js/site.js
