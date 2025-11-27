@@ -1,0 +1,424 @@
+@page "/meta-proyectos"
+@page "/meta_proyectos"
+
+@using System.Net.Http.Json
+@using FrontendBlazorApi.Models
+@inject IHttpClientFactory fabricaHttp
+@rendermode InteractiveServer
+
+<PageTitle>Meta - Proyectos</PageTitle>
+
+<h3>Gestión de Asociación Meta - Proyecto</h3>
+
+<div class="mb-3 d-flex gap-2">
+    <button type="button" class="btn btn-outline-secondary" @onclick="ProbarConexion">Probar conexión</button>
+    <button type="button" class="btn btn-outline-primary" @onclick="CargarMetaProyectos">Mostrar todos</button>
+    <button type="button" class="btn btn-outline-dark" @onclick="LimpiarFormulario">Limpiar</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(mensaje))
+{
+    <div class="@claseAviso" role="alert">@mensaje</div>
+}
+
+<h4>Formulario de Asociación Meta - Proyecto</h4>
+<EditForm Model="metaProyectoActual" OnValidSubmit="GuardarSegunMetaProyecto" FormName="MetaProyectoForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label">Meta Estratégica</label>
+            <InputSelect class="form-control" @bind-Value="metaProyectoActual.IdMeta">
+                <option value="0">Seleccione una meta estratégica</option>
+                @foreach (var m in listaMetasEstrategicas)
+                {
+                    <option value="@m.Id">@m.Titulo</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Proyecto</label>
+            <InputSelect class="form-control" @bind-Value="metaProyectoActual.IdProyecto">
+                <option value="0">Seleccione un proyecto</option>
+                @foreach (var p in listaProyectos)
+                {
+                    <option value="@p.Id">@p.Titulo</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Fecha de asociación</label>
+            <InputDate class="form-control" @bind-Value="metaProyectoActual.FechaAsociacion" />
+        </div>
+    </div>
+    <div class="mt-3 d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary">@textoBotonGuardar</button>
+        <button type="button" class="btn btn-secondary" @onclick="BuscarPorId">Buscar</button>
+        <button type="button" class="btn btn-danger" @onclick="EliminarMetaProyecto" disabled="@(!existeMetaProyecto)">Eliminar</button>
+    </div>
+</EditForm>
+
+<hr />
+
+@if (cargando)
+{
+    <p><em>Cargando asociaciones Meta-Proyecto...</em></p>
+}
+else if (listaMetaProyectos.Count == 0)
+{
+    <p>No hay asociaciones disponibles.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Meta</th>
+                <th>Proyecto</th>
+                <th>Fecha Asoc.</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var mp in listaMetaProyectos)
+            {
+                <tr>
+                    <td>@ObtenerNombreMeta(mp.IdMeta)</td>
+                    <td>@ObtenerNombreProyecto(mp.IdProyecto)</td>
+                    <td>@(mp.FechaAsociacion?.ToString("yyyy-MM-dd") ?? "-")</td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-outline-primary" 
+                                @onclick="@(() => CargarEnFormulario(mp))">
+                            Cargar
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Meta_Proyecto> listaMetaProyectos = new();
+    private List<MetaEstrategica> listaMetasEstrategicas = new();
+    private List<Proyecto> listaProyectos = new();
+
+    [SupplyParameterFromForm]
+    private Meta_Proyecto metaProyectoActual { get; set; } = new();
+
+    private bool existeMetaProyecto = false;
+    private string textoBotonGuardar = "Crear";
+    private string mensaje = "";
+    private string claseAviso = "alert alert-info";
+    private bool cargando = false;
+    private const string urlBaseApi = "api/metaproyecto";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarMetaProyectos();
+        await CargarMetasEstrategicas();
+        await CargarProyectos();
+    }
+
+    private async Task CargarMetaProyectos()
+    {
+        try
+        {
+            cargando = true;
+            var cliente = fabricaHttp.CreateClient("ApiMetaProyectos");
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<Meta_Proyecto>>>(urlBaseApi);
+            listaMetaProyectos = respuesta?.Datos ?? new List<Meta_Proyecto>();
+            mensaje = $"Se cargaron {listaMetaProyectos.Count} asociación(es).";
+            claseAviso = "alert alert-success";
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al listar asociaciones: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task CargarMetasEstrategicas()
+    {
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiMetasEstrategicas");
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<MetaEstrategica>>>("api/metaestrategica");
+            listaMetasEstrategicas = respuesta?.Datos ?? new List<MetaEstrategica>();
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al cargar metas estratégicas: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task CargarProyectos()
+    {
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiProyectos");
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<Proyecto>>>("api/proyecto");
+            listaProyectos = respuesta?.Datos ?? new List<Proyecto>();
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al cargar proyectos: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private string ObtenerNombreMeta(int idMeta)
+    {
+        var m = listaMetasEstrategicas.FirstOrDefault(x => x.Id == idMeta);
+        return m?.Titulo ?? "No encontrado";
+    }
+
+    private string ObtenerNombreProyecto(int idProyecto)
+    {
+        var p = listaProyectos.FirstOrDefault(x => x.Id == idProyecto);
+        return p?.Titulo ?? "No encontrado";
+    }
+
+    private async Task BuscarPorId()
+    {
+        LimpiarMensajes();
+        if (metaProyectoActual.IdMeta <= 0 || metaProyectoActual.IdProyecto <= 0)
+        {
+            mensaje = "Debe indicar IdMeta e IdProyecto válidos para buscar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiMetaProyectos");
+            var ruta = $"{urlBaseApi}/idmeta/{metaProyectoActual.IdMeta}/idproyecto/{metaProyectoActual.IdProyecto}";
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<Meta_Proyecto>>>(ruta);
+            var encontrado = respuesta?.Datos?.FirstOrDefault();
+
+            if (encontrado is not null)
+            {
+                metaProyectoActual = new Meta_Proyecto
+                {
+                    IdMeta = encontrado.IdMeta,
+                    IdProyecto = encontrado.IdProyecto,
+                    FechaAsociacion = encontrado.FechaAsociacion
+                };
+                existeMetaProyecto = true;
+                textoBotonGuardar = "Actualizar";
+                mensaje = "Asociación cargada en el formulario.";
+                claseAviso = "alert alert-success";
+            }
+            else
+            {
+                existeMetaProyecto = false;
+                textoBotonGuardar = "Crear";
+                mensaje = "Asociación no encontrada.";
+                claseAviso = "alert alert-warning";
+            }
+        }
+        catch (Exception error)
+        {
+            existeMetaProyecto = false;
+            textoBotonGuardar = "Crear";
+            mensaje = $"Error al buscar asociación: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task GuardarSegunMetaProyecto()
+    {
+        if (existeMetaProyecto)
+            await ActualizarMetaProyecto();
+        else
+            await CrearMetaProyecto();
+    }
+
+    private async Task CrearMetaProyecto()
+    {
+        LimpiarMensajes();
+        try
+        {
+            var mpParaCrear = new
+            {
+                IdMeta = metaProyectoActual.IdMeta,
+                IdProyecto = metaProyectoActual.IdProyecto,
+                FechaAsociacion = metaProyectoActual.FechaAsociacion
+            };
+
+            if (Vacio(mpParaCrear)) return;
+
+            var cliente = fabricaHttp.CreateClient("ApiMetaProyectos");
+            var respuesta = await cliente.PostAsJsonAsync(urlBaseApi, mpParaCrear);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Asociación creada correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarMetaProyectos();
+                LimpiarFormulario();
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"No se pudo crear la asociación. Detalle: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al crear asociación: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task ActualizarMetaProyecto()
+    {
+        LimpiarMensajes();
+        if (metaProyectoActual.IdMeta <= 0 || metaProyectoActual.IdProyecto <= 0)
+        {
+            mensaje = "Debe indicar IdMeta e IdProyecto válidos para actualizar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            var mpParaActualizar = new
+            {
+                IdMeta = metaProyectoActual.IdMeta,
+                IdProyecto = metaProyectoActual.IdProyecto,
+                FechaAsociacion = metaProyectoActual.FechaAsociacion
+            };
+
+            if (Vacio(mpParaActualizar)) return;
+
+            var cliente = fabricaHttp.CreateClient("ApiMetaProyectos");
+            var ruta = $"{urlBaseApi}/idmeta/{metaProyectoActual.IdMeta}/idproyecto/{metaProyectoActual.IdProyecto}";
+            var respuesta = await cliente.PutAsJsonAsync(ruta, mpParaActualizar);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Asociación actualizada correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarMetaProyectos();
+                existeMetaProyecto = true;
+                textoBotonGuardar = "Actualizar";
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"No se pudo actualizar la asociación. Detalle: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al actualizar asociación: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task EliminarMetaProyecto()
+    {
+        LimpiarMensajes();
+        if (metaProyectoActual.IdMeta <= 0 || metaProyectoActual.IdProyecto <= 0)
+        {
+            mensaje = "Debe indicar IdMeta e IdProyecto válidos para eliminar.";
+            claseAviso = "alert alert-warning";
+            return;
+        }
+
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiMetaProyectos");
+            var ruta = $"{urlBaseApi}/idmeta/{metaProyectoActual.IdMeta}/idproyecto/{metaProyectoActual.IdProyecto}";
+            var respuesta = await cliente.DeleteAsync(ruta);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Asociación eliminada correctamente.";
+                claseAviso = "alert alert-success";
+                await CargarMetaProyectos();
+                LimpiarFormulario();
+            }
+            else
+            {
+                var detalle = await respuesta.Content.ReadAsStringAsync();
+                mensaje = $"No se pudo eliminar la asociación. Detalle: {detalle}";
+                claseAviso = "alert alert-danger";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al eliminar asociación: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private async Task ProbarConexion()
+    {
+        LimpiarMensajes();
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiMetaProyectos");
+            var respuesta = await cliente.GetAsync(urlBaseApi);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                mensaje = "Conexión con la API verificada.";
+                claseAviso = "alert alert-success";
+            }
+            else
+            {
+                mensaje = $"La API respondió con estado {(int)respuesta.StatusCode}.";
+                claseAviso = "alert alert-warning";
+            }
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error de conexión a la API: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+
+    private void CargarEnFormulario(Meta_Proyecto mp)
+    {
+        metaProyectoActual = new Meta_Proyecto
+        {
+            IdMeta = mp.IdMeta,
+            IdProyecto = mp.IdProyecto,
+            FechaAsociacion = mp.FechaAsociacion
+        };
+        existeMetaProyecto = true;
+        textoBotonGuardar = "Actualizar";
+        mensaje = "Asociación seleccionada desde el listado.";
+        claseAviso = "alert alert-info";
+    }
+
+    private void LimpiarMensajes()
+    {
+        mensaje = "";
+        claseAviso = "alert alert-info";
+    }
+
+    private void LimpiarFormulario()
+    {
+        metaProyectoActual = new Meta_Proyecto();
+        existeMetaProyecto = false;
+        textoBotonGuardar = "Crear";
+        LimpiarMensajes();
+    }
+
+    private bool Vacio(dynamic o)
+    {
+        if (o.IdMeta <= 0 || o.IdProyecto <= 0)
+        {
+            mensaje = "Error: IdMeta e IdProyecto son obligatorios";
+            claseAviso = "alert alert-warning";
+            return true;
+        }
+        return false;
+    }
+}
