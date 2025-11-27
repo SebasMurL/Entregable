@@ -19,4 +19,21 @@ namespace FrontendBlazorApi.Models
     {
         public T? Datos { get; set; }
     }
+    public class UsuarioConRoles
+{
+    [JsonPropertyName("email")]
+    public string Email { get; set; } = string.Empty;
+
+    [JsonPropertyName("roles")]
+    public List<RolDto> Roles { get; set; } = new();
+}
+
+public class RolDto
+{
+    [JsonPropertyName("idrol")]
+    public int IdRol { get; set; }
+
+    [JsonPropertyName("nombre")]
+    public string Nombre { get; set; } = string.Empty;
+}
 }
