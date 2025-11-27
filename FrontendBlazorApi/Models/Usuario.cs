@@ -4,13 +4,16 @@ namespace FrontendBlazorApi.Models
     // Modelo que representa una Persona tal como lo devuelve la API
     public class Usuario
     {
-         public int Id { get; set; }
+        public int Id { get; set; }
+
+        [JsonPropertyName("email")]
         public string Email { get; set; } = string.Empty;
 
-        [JsonPropertyName("Contrasena")] 
+        [JsonPropertyName("contrasena")] 
         public string Contrasena { get; set; } = string.Empty;
-        
+        [JsonPropertyName("rutaavatar")] 
         public string RutaAvatar { get; set; } = string.Empty;
+        [JsonPropertyName("activo")] 
         public bool Activo { get; set; }
 
     }
@@ -26,8 +29,14 @@ namespace FrontendBlazorApi.Models
 
     [JsonPropertyName("roles")]
     public List<RolDto> Roles { get; set; } = new();
-}
+    
+    [JsonPropertyName("rutaavatar")] 
 
+    public string? RutaAvatar { get; set; }
+    [JsonPropertyName("activo")] 
+    public bool Activo { get; set; } = true;
+}
+    //a
 public class RolDto
 {
     [JsonPropertyName("idrol")]

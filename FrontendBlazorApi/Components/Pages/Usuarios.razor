@@ -3,6 +3,8 @@
 @using FrontendBlazorApi.Servicios
 @using FrontendBlazorApi.Components
 @using System.Text.Json
+@inject IHttpClientFactory fabricaHttp
+
 @inherits PaginaAutenticada
 @inject ServicioApiGenerico servicioApi
 @inject IJSRuntime JS
@@ -80,6 +82,34 @@
                             <small class="text-muted">Dejar en blanco para mantener la contraseña actual</small>
                         }
                     </div>
+                                        <!--a URLAvatar -->
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-lock"></i> URLAvatar
+                        </label>
+                       <InputText class="form-control" @bind-Value="usuarioActual.RutaAvatar" />
+                        <ValidationMessage For="() => usuarioActual.RutaAvatar" />
+                        @if (modoEdicion)
+                        {
+                            <small class="text-muted">Dejar en blanco para mantener el URL actual</small>
+                        }
+                    </div>
+                                        <!-- Estado -->
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-lock"></i> Activo
+                        </label>
+                            <InputCheckbox class="form-check-input" @bind-Value="usuarioActual.Activo" />
+
+                        <ValidationMessage For="() => usuarioActual.Activo" />
+                        @if (modoEdicion)
+                        {
+                            <small class="text-muted">Dejar vacio</small>
+                        }
+                    </div>
+                    
 
                     <!-- Roles -->
                     <div class="col-md-12">
@@ -131,6 +161,8 @@
                         <i class="bi @(modoEdicion ? "bi-pencil-square" : "bi-plus-circle") me-1"></i>
                         @(modoEdicion ? "Actualizar" : "Crear") Usuario
                     </button>
+                    
+                    <button type="button" class="btn btn-secondary" @onclick="BuscarPorEmail">Buscar</button>
 
                     @if (modoEdicion)
                     {
@@ -173,6 +205,8 @@
                         <thead class="table-primary">
                             <tr>
                                 <th><i class="bi bi-envelope me-1"></i>Email</th>
+                                <th>RutaAvatar</th>
+                                <th>Activo</th>
                                 <th><i class="bi bi-shield-check me-1"></i>Roles Asignados</th>
                                 <th class="text-center"><i class="bi bi-gear me-1"></i>Acciones</th>
                             </tr>
@@ -184,6 +218,38 @@
                                     <td class="fw-bold">
                                         <i class="bi bi-person-circle me-2"></i>@usuario.Email
                                     </td>
+                                    <!-- Columna RutaAvatar -->
+                                <td>
+                                    @if (!string.IsNullOrEmpty(usuario.RutaAvatar))
+                                    {
+                                       <td class="fw-bold">
+                                        <i class="bi bi-person-circle me-2"></i>@usuario.RutaAvatar
+                                    </td>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">
+                                            <i class="bi bi-person-circle me-1"></i>Sin avatar
+                                        </span>
+                                    }
+                                </td>
+                                
+                                <!-- Columna Estado -->
+                                <td>
+                                    @if (usuario.Activo)
+                                    {
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle me-1"></i>Activo
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">
+                                            <i class="bi bi-x-circle me-1"></i>Inactivo
+                                        </span>
+                                    }
+                                </td>
+                                    
                                     <td>
                                         @if (usuario.Roles != null && usuario.Roles.Any())
                                         {
@@ -226,8 +292,10 @@
 </div>
 
 @code {
+    private List<Usuario> listaUsuarios = new();
     private List<UsuarioConRoles> usuarios = new();
     private List<Rol> roles = new();
+    private bool existeUsuario = false;
     private Usuario usuarioActual = new();
     private List<int> rolesSeleccionados = new();
     private bool cargando = false;
@@ -235,19 +303,96 @@
     private string mensaje = string.Empty;
     private string estiloMensaje = "alert-info";
     private string iconoMensaje = "bi-info-circle";
+    private string claseAviso = "alert alert-info";
+    private const string urlBaseApi = "api/usuario";
+
+     
+
 
     protected override async Task OnAutenticacionVerificada()
     {
         // Este método se llama automáticamente después de verificar la autenticación
         await CargarDatosIniciales();
     }
+    private string ObtenerNombreCortoAvatar(string rutaAvatar)
+{
+    if (string.IsNullOrEmpty(rutaAvatar))
+        return "Sin avatar";
+    
+    // Versión simple - tomar los últimos 20 caracteres
+    return rutaAvatar.Length > 20 ? "..." + rutaAvatar.Substring(rutaAvatar.Length - 20) : rutaAvatar;
+}
 
     private async Task CargarDatosIniciales()
     {
-        await Task.WhenAll(
+        await Task.WhenAll
+        (
             CargarRoles(),
             CargarUsuarios()
         );
+        Console.WriteLine(value: "Entro");
+
+    }
+    private async Task BuscarPorEmail()
+    {
+
+        if (string.IsNullOrWhiteSpace(usuarioActual.Email))
+        {
+            mensaje = "Debe indicar el Email para buscar.";
+            claseAviso = "alert alert-warning";
+            return; 
+        }
+
+        try
+        {
+            var cliente = fabricaHttp.CreateClient("ApiUsuarios");
+
+            var ruta = $"{urlBaseApi}/email/{usuarioActual.Email}";
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<Usuario>>>(ruta);
+
+            var encontrado = respuesta?.Datos?.FirstOrDefault();
+
+            if (encontrado is not null)
+            {
+                usuarioActual = new Usuario
+                {
+                    Email = encontrado.Email,
+                    Contrasena = encontrado.Contrasena,
+                    RutaAvatar = encontrado.RutaAvatar,
+                    Activo = encontrado.Activo
+                };
+                existeUsuario = true;
+                mensaje = "Usuario cargado en el formulario.";
+                claseAviso = "alert alert-success";
+            }
+            else
+            {
+                existeUsuario = false;
+                mensaje = "Usuario no encontrado.";
+                claseAviso = "alert alert-warning";
+            }
+        }
+        catch (Exception error)
+        {
+
+            existeUsuario = false;
+            mensaje = $"Error al buscar usuario: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+    }
+    private void CargarEnFormulario(Usuario p)
+    {
+        usuarioActual = new Usuario
+        {
+            Email = p.Email,
+            Contrasena = p.Contrasena,
+            RutaAvatar = p.RutaAvatar,
+            Activo = p.Activo
+        };
+
+        existeUsuario = true;
+        mensaje = "Usuario seleccionado desde el listado.";
+        claseAviso = "alert alert-info";
     }
 
     private async Task ProbarConexion()
@@ -281,153 +426,150 @@
             roles = new List<Rol>();
         }
     }
+    private async Task CargarUsuariosA()
+    {
+        try
+        {
+
+            cargando = true;
+
+            var cliente = fabricaHttp.CreateClient("ApiUsuarios");
+
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<Usuario>>>(urlBaseApi);
+            
+            listaUsuarios = respuesta?.Datos ?? new List<Usuario>();
+
+            mensaje = $"Se cargaron {listaUsuarios.Count} usuario(s).";
+            claseAviso = "alert alert-success";
+        }
+        catch (Exception error)
+        {
+            mensaje = $"Error al listar usuarios: {error.Message}";
+            claseAviso = "alert alert-danger";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
 
     private async Task CargarUsuarios()
+{
+    try
     {
-        try
+        cargando = true;
+        
+        // Ahora sí es un stored procedure
+        var resultado = await servicioApi.EjecutarStoredProcedureConResultadosAsync("sp_listar_usuarios_con_roles", new { });
+        
+        if (resultado?.Resultados != null && resultado.Resultados.Count > 0)
         {
-            cargando = true;
-            mensaje = string.Empty;
-
-            // Parámetros vacíos para la función (no requiere parámetros)
-            var parametros = new { };
-
-            // Ejecutar stored procedure usando el servicio genérico
-            var resultado = await servicioApi.EjecutarStoredProcedureConResultadosAsync("listar_usuarios_con_roles", parametros);
-
-            if (resultado?.Resultados != null && resultado.Resultados.Count > 0)
+            var primeraFila = resultado.Resultados[0];
+            string jsonUsuarios = primeraFila["Resultado"]?.ToString();
+            
+            if (!string.IsNullOrEmpty(jsonUsuarios))
             {
-                var primeraFila = resultado.Resultados[0];
-                string? jsonUsuarios = null;
+                var listaUsuarios = JsonSerializer.Deserialize<List<UsuarioConRoles>>(jsonUsuarios,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
-                // MANEJO DE DIFERENCIAS ENTRE MOTORES DE BD (igual que Facturas)
-                // SQL Server: JSON en columna "Resultado"
-                // PostgreSQL: JSON directamente en primera columna
-                if (primeraFila.ContainsKey("Resultado"))
-                {
-                    jsonUsuarios = primeraFila["Resultado"]?.ToString();
-                }
-                else if (primeraFila.ContainsKey("listar_usuarios_con_roles"))
-                {
-                    jsonUsuarios = primeraFila["listar_usuarios_con_roles"]?.ToString();
-                }
-                else if (primeraFila.Count > 0)
-                {
-                    var primerValor = primeraFila.Values.FirstOrDefault();
-                    jsonUsuarios = primerValor?.ToString();
-                }
-
-                if (!string.IsNullOrEmpty(jsonUsuarios))
-                {
-                    // Deserializar el JSON a lista de usuarios con roles
-                    var listaUsuarios = JsonSerializer.Deserialize<List<UsuarioConRoles>>(jsonUsuarios,
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-                    usuarios = listaUsuarios ?? new List<UsuarioConRoles>();
-                    MostrarMensaje($"Se cargaron {usuarios.Count} usuarios con sus roles", "success");
-                }
-                else
-                {
-                    MostrarMensaje("No se pudo obtener el JSON de usuarios", "warning");
-                    usuarios = new List<UsuarioConRoles>();
-                }
+                usuarios = listaUsuarios ?? new List<UsuarioConRoles>();
+                MostrarMensaje($"Se cargaron {usuarios.Count} usuarios", "success");
             }
-            else
-            {
-                MostrarMensaje("No hay usuarios registrados", "info");
-                usuarios = new List<UsuarioConRoles>();
-            }
-        }
-        catch (Exception ex)
-        {
-            MostrarMensaje($"Error al cargar usuarios: {ex.Message}", "danger");
-            usuarios = new List<UsuarioConRoles>();
-        }
-        finally
-        {
-            cargando = false;
         }
     }
+    catch (Exception ex)
+    {
+        MostrarMensaje($"Error: {ex.Message}", "danger");
+    }
+    finally
+    {
+        cargando = false;
+    }
+}
 
     private async Task GuardarUsuario()
+{
+    try
     {
-        try
+        cargando = true;
+
+        // Validaciones básicas
+        if (string.IsNullOrWhiteSpace(usuarioActual.Email))
         {
-            cargando = true;
-
-            // Validaciones básicas
-            if (string.IsNullOrWhiteSpace(usuarioActual.Email))
-            {
-                MostrarMensaje("Por favor ingrese el email del usuario", "warning");
-                return;
-            }
-
-            if (!modoEdicion && string.IsNullOrWhiteSpace(usuarioActual.Contrasena))
-            {
-                MostrarMensaje("Por favor ingrese una contraseña", "warning");
-                return;
-            }
-
-            if (rolesSeleccionados.Count == 0)
-            {
-                MostrarMensaje("Por favor seleccione al menos un rol", "warning");
-                return;
-            }
-
-            // Crear JSON de roles para el procedimiento almacenado
-            var rolesJson = JsonSerializer.Serialize(rolesSeleccionados.Select(id => new { fkidrol = id }));
-
-            if (modoEdicion)
-            {
-                // ACTUALIZAR USUARIO EXISTENTE CON STORED PROCEDURE
-                var confirmacion = await JS.InvokeAsync<bool>("confirm",
-                    $"¿Está seguro de actualizar el usuario {usuarioActual.Email}?");
-
-                if (!confirmacion) return;
-
-                // Preparar parámetros con prefijo p_ - IMPORTANTE: Convertir contraseña a string explícitamente
-                var parametros = new Dictionary<string, object?>
-                {
-                    ["p_email"] = usuarioActual.Email,
-                    ["p_contrasena"] = string.IsNullOrWhiteSpace(usuarioActual.Contrasena) ? null : usuarioActual.Contrasena?.ToString(),
-                    ["p_roles"] = rolesJson
-                };
-
-                // Ejecutar el stored procedure con encriptación de contraseña
-                await servicioApi.EjecutarStoredProcedureAsync("actualizar_usuario_con_roles", parametros, "p_contrasena");
-
-                MostrarMensaje($"Usuario {usuarioActual.Email} actualizado exitosamente con sus roles", "success");
-            }
-            else
-            {
-                // CREAR NUEVO USUARIO CON STORED PROCEDURE - IMPORTANTE: Convertir contraseña a string explícitamente
-                var parametros = new Dictionary<string, object?>
-                {
-                    ["p_email"] = usuarioActual.Email,
-                    ["p_contrasena"] = usuarioActual.Contrasena?.ToString() ?? "",
-                    ["p_roles"] = rolesJson
-                };
-
-                // Ejecutar el stored procedure con encriptación de contraseña
-                await servicioApi.EjecutarStoredProcedureAsync("crear_usuario_con_roles", parametros, "p_contrasena");
-
-                MostrarMensaje($"Usuario {usuarioActual.Email} creado exitosamente con contraseña encriptada y {rolesSeleccionados.Count} roles asignados", "success");
-            }
-
-            // Recargar usuarios y limpiar formulario
-            await CargarUsuarios();
-            LimpiarFormulario();
+            MostrarMensaje("Por favor ingrese el email del usuario", "warning");
+            return;
         }
-        catch (Exception ex)
+
+        if (!modoEdicion && string.IsNullOrWhiteSpace(usuarioActual.Contrasena))
         {
-            MostrarMensaje($"Error al guardar: {ex.Message}", "danger");
+            MostrarMensaje("Por favor ingrese una contraseña", "warning");
+            return;
         }
-        finally
+
+        if (rolesSeleccionados.Count == 0)
         {
-            cargando = false;
+            MostrarMensaje("Por favor seleccione al menos un rol", "warning");
+            return;
         }
+
+        // Crear JSON de roles para el procedimiento almacenado
+        var rolesJson = JsonSerializer.Serialize(rolesSeleccionados.Select(id => new { fkidrol = id }));
+
+        if (modoEdicion)
+        {
+            // ACTUALIZAR USUARIO EXISTENTE CON STORED PROCEDURE
+            var confirmacion = await JS.InvokeAsync<bool>("confirm",
+                $"¿Está seguro de actualizar el usuario {usuarioActual.Email}?");
+
+            if (!confirmacion) return;
+
+            // CORREGIDO: Parámetros para actualización
+            var parametros = new Dictionary<string, object?>
+            {
+                ["p_email"] = usuarioActual.Email,
+                ["p_contrasena"] = string.IsNullOrWhiteSpace(usuarioActual.Contrasena) ? null : usuarioActual.Contrasena?.ToString(),
+                ["p_activo"] = usuarioActual.Activo, 
+                ["p_rutaavatar"] = string.IsNullOrWhiteSpace(usuarioActual.RutaAvatar) ? null : usuarioActual.RutaAvatar?.ToString(),
+                ["p_roles"] = rolesJson
+            };
+
+            // Ejecutar el stored procedure con encriptación de contraseña
+            await servicioApi.EjecutarStoredProcedureAsync("actualizar_usuario_con_roles", parametros, "p_contrasena");
+
+            MostrarMensaje($"Usuario {usuarioActual.Email} actualizado exitosamente con sus roles", "success");
+        }
+        else
+        {
+            // CREAR NUEVO USUARIO CON STORED PROCEDURE
+            var parametros = new Dictionary<string, object?>
+            {
+                ["p_email"] = usuarioActual.Email,
+                ["p_contrasena"] = usuarioActual.Contrasena?.ToString() ?? "",
+                ["p_rutaavatar"] = usuarioActual.RutaAvatar ?? null,  // Permitir null
+                ["p_activo"] = usuarioActual.Activo,
+                ["p_roles"] = rolesJson
+            };
+
+            // Ejecutar el stored procedure con encriptación de contraseña
+            await servicioApi.EjecutarStoredProcedureAsync("crear_usuario_con_roles", parametros, "p_contrasena");
+
+            MostrarMensaje($"Usuario {usuarioActual.Email} creado exitosamente con contraseña encriptada y {rolesSeleccionados.Count} roles asignados", "success");
+        }
+
+        // Recargar usuarios y limpiar formulario
+        await CargarUsuarios();
+        LimpiarFormulario();
     }
-
+    catch (Exception ex)
+    {
+        MostrarMensaje($"Error al guardar: {ex.Message}", "danger");
+        Console.WriteLine($"Error detallado: {ex}"); // Para debugging
+    }
+    finally
+    {
+        cargando = false;
+    }
+}
     private async Task EliminarUsuario(string email)
     {
         try
