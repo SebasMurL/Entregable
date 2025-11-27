@@ -1,0 +1,373 @@
+@page "/permisos"
+@using FrontendBlazorApi.Models
+@using FrontendBlazorApi.Servicios
+@using FrontendBlazorApi.Components
+@using System.Text.Json
+@inherits PaginaAutenticada
+@inject ServicioApiGenerico servicioApi
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<PageTitle>Gestión de Permisos</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Formulario para crear permiso -->
+        <div class="col-md-5">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-shield-plus me-2"></i>Asignar Permiso
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <EditForm Model="permisoActual" OnValidSubmit="AsignarPermiso" FormName="formPermiso">
+                        <DataAnnotationsValidator />
+
+                        <!-- Seleccionar Ruta -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="bi bi-signpost me-1"></i>Ruta
+                            </label>
+                            <InputSelect class="form-select" @bind-Value="permisoActual.Ruta">
+                                <option value="">-- Seleccione una ruta --</option>
+                                @foreach (var ruta in rutasDisponibles)
+                                {
+                                    <option value="@ruta.Ruta">@ruta.Ruta - @ruta.Descripcion</option>
+                                }
+                            </InputSelect>
+                            <div class="form-text">Página o módulo del sistema</div>
+                        </div>
+
+                        <!-- Seleccionar Rol -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="bi bi-person-badge me-1"></i>Rol
+                            </label>
+                            <InputSelect class="form-select" @bind-Value="permisoActual.Rol">
+                                <option value="">-- Seleccione un rol --</option>
+                                @foreach (var rol in roles)
+                                {
+                                    <option value="@rol.Nombre">@rol.Nombre</option>
+                                }
+                            </InputSelect>
+                            <div class="form-text">Rol que tendrá acceso a la ruta</div>
+                        </div>
+
+                        <!-- Botones -->
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary shadow-sm" disabled="@cargando">
+                                <i class="bi bi-shield-check me-1"></i>Asignar Permiso
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" @onclick="LimpiarFormulario" disabled="@cargando">
+                                <i class="bi bi-x-circle me-1"></i>Limpiar
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+
+            <!-- Información -->
+            <div class="card shadow-sm border-0 mt-3">
+                <div class="card-body bg-light">
+                    <h6 class="text-muted mb-2">
+                        <i class="bi bi-info-circle me-1"></i>Información
+                    </h6>
+                    <small class="text-muted">
+                        Los permisos controlan qué roles pueden acceder a cada página del sistema.
+                        Un usuario puede tener múltiples roles, y tendrá acceso a todas las rutas
+                        permitidas por cualquiera de sus roles.
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Listado de permisos actuales -->
+        <div class="col-md-7">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-table me-2"></i>Permisos Actuales
+                    </h5>
+                    <button class="btn btn-light btn-sm" @onclick="CargarPermisos" disabled="@cargando">
+                        <i class="bi bi-arrow-clockwise"></i> Recargar
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    @if (cargando)
+                    {
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando...</span>
+                            </div>
+                        </div>
+                    }
+                    else if (permisos == null || !permisos.Any())
+                    {
+                        <div class="text-center py-5">
+                            <i class="bi bi-shield-slash text-muted" style="font-size: 3rem;"></i>
+                            <p class="text-muted mt-3">No hay permisos configurados</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th><i class="bi bi-signpost me-1"></i>Ruta</th>
+                                        <th><i class="bi bi-person-badge me-1"></i>Rol</th>
+                                        <th class="text-center"><i class="bi bi-gear me-1"></i>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var permiso in permisos)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <code class="text-primary">@permiso.Ruta</code>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-info">
+                                                    <i class="bi bi-shield-check me-1"></i>@permiso.Rol
+                                                </span>
+                                            </td>
+                                            <td class="text-center">
+                                                <button class="btn btn-outline-danger btn-sm"
+                                                        @onclick="() => EliminarPermiso(permiso.Ruta, permiso.Rol)"
+                                                        disabled="@cargando"
+                                                        title="Eliminar permiso">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="card-footer bg-light">
+                            <span class="badge bg-primary">Total: @permisos.Count permisos configurados</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(mensaje))
+    {
+        <div class="@estiloMensaje alert-dismissible fade show shadow-sm mt-3" role="alert">
+            <i class="bi @iconoMensaje me-2"></i>@mensaje
+            <button type="button" class="btn-close" @onclick="() => mensaje = string.Empty"></button>
+        </div>
+    }
+</div>
+
+@code {
+    private List<RutaRolDto> permisos = new();
+    private List<RutaDto> rutasDisponibles = new();
+    private List<Rol> roles = new();
+    private RutaRolDto permisoActual = new();
+    private bool cargando = false;
+    private string mensaje = string.Empty;
+    private string estiloMensaje = "alert-info";
+    private string iconoMensaje = "bi-info-circle";
+
+    protected override async Task OnAutenticacionVerificada()
+    {
+        // Este método se llama automáticamente después de verificar la autenticación
+        await CargarDatosIniciales();
+    }
+
+    private async Task CargarDatosIniciales()
+    {
+        await Task.WhenAll(
+            CargarPermisos(),
+            CargarRutas(),
+            CargarRoles()
+        );
+    }
+
+    private async Task CargarPermisos()
+    {
+        try
+        {
+            cargando = true;
+            mensaje = string.Empty;
+
+            // Ejecutar stored procedure para listar permisos
+            var parametros = new { };
+            var resultado = await servicioApi.EjecutarStoredProcedureConResultadosAsync("listar_rutarol", parametros);
+
+            if (resultado?.Resultados != null && resultado.Resultados.Count > 0)
+            {
+                permisos = resultado.Resultados.Select(d => new RutaRolDto
+                {
+                    Ruta = ObtenerString(d, "ruta"),
+                    Rol = ObtenerString(d, "rol")
+                }).ToList();
+
+                MostrarMensaje($"Se cargaron {permisos.Count} permisos", "success");
+            }
+            else
+            {
+                permisos = new List<RutaRolDto>();
+                MostrarMensaje("No hay permisos configurados", "info");
+            }
+        }
+        catch (Exception ex)
+        {
+            MostrarMensaje($"Error al cargar permisos: {ex.Message}", "danger");
+            permisos = new List<RutaRolDto>();
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task CargarRutas()
+    {
+        try
+        {
+            var respuesta = await servicioApi.ObtenerTodosAsync<RutaDto>("ruta");
+            rutasDisponibles = respuesta ?? new List<RutaDto>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al cargar rutas: {ex.Message}");
+            rutasDisponibles = new List<RutaDto>();
+        }
+    }
+
+    private async Task CargarRoles()
+    {
+        try
+        {
+            var respuesta = await servicioApi.ObtenerTodosAsync<Rol>("rol");
+            roles = respuesta ?? new List<Rol>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al cargar roles: {ex.Message}");
+            roles = new List<Rol>();
+        }
+    }
+
+    private async Task AsignarPermiso()
+    {
+        try
+        {
+            cargando = true;
+
+            if (string.IsNullOrWhiteSpace(permisoActual.Ruta) || string.IsNullOrWhiteSpace(permisoActual.Rol))
+            {
+                MostrarMensaje("Debe seleccionar una ruta y un rol", "warning");
+                return;
+            }
+
+            // Ejecutar stored procedure para crear permiso
+            var parametros = new
+            {
+                p_ruta = permisoActual.Ruta,
+                p_rol = permisoActual.Rol
+            };
+
+            await servicioApi.EjecutarStoredProcedureAsync("crear_rutarol", parametros);
+
+            MostrarMensaje($"Permiso asignado: {permisoActual.Rol} puede acceder a {permisoActual.Ruta}", "success");
+            await CargarPermisos();
+            LimpiarFormulario();
+        }
+        catch (Exception ex)
+        {
+            MostrarMensaje($"Error al asignar permiso: {ex.Message}", "danger");
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task EliminarPermiso(string ruta, string rol)
+    {
+        try
+        {
+            var confirmacion = await JS.InvokeAsync<bool>("confirm",
+                $"¿Está seguro de eliminar el permiso?\n\nRol: {rol}\nRuta: {ruta}");
+
+            if (!confirmacion) return;
+
+            cargando = true;
+
+            var parametros = new
+            {
+                p_ruta = ruta,
+                p_rol = rol
+            };
+
+            await servicioApi.EjecutarStoredProcedureAsync("eliminar_rutarol", parametros);
+
+            MostrarMensaje($"Permiso eliminado exitosamente", "success");
+            await CargarPermisos();
+        }
+        catch (Exception ex)
+        {
+            MostrarMensaje($"Error al eliminar permiso: {ex.Message}", "danger");
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private void LimpiarFormulario()
+    {
+        permisoActual = new RutaRolDto();
+        mensaje = string.Empty;
+    }
+
+    private void MostrarMensaje(string texto, string tipo)
+    {
+        mensaje = texto;
+        estiloMensaje = tipo switch
+        {
+            "success" => "alert alert-success",
+            "danger" => "alert alert-danger",
+            "warning" => "alert alert-warning",
+            _ => "alert alert-info"
+        };
+        iconoMensaje = tipo switch
+        {
+            "success" => "bi-check-circle",
+            "danger" => "bi-exclamation-triangle",
+            "warning" => "bi-exclamation-circle",
+            _ => "bi-info-circle"
+        };
+    }
+
+    private string ObtenerString(Dictionary<string, object> dict, string key)
+    {
+        if (!dict.TryGetValue(key, out var valor)) return "";
+        if (valor is JsonElement elem)
+            return elem.ValueKind == JsonValueKind.String ? elem.GetString() ?? "" : elem.ToString();
+        return valor?.ToString() ?? "";
+    }
+
+    // DTOs internos
+    private class RutaRolDto
+    {
+        public string Ruta { get; set; } = string.Empty;
+        public string Rol { get; set; } = string.Empty;
+    }
+
+    private class RutaDto
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("ruta")]
+        public string Ruta { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("descripcion")]
+        public string Descripcion { get; set; } = string.Empty;
+    }
+}

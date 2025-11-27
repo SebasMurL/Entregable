@@ -1,141 +1,174 @@
 @page "/actividades"
-
 @using System.Net.Http.Json
 @using FrontendBlazorApi.Models
+@using FrontendBlazorApi.Servicios
+@using FrontendBlazorApi.Components
 @inject IHttpClientFactory fabricaHttp
+@inject ServicioApiGenerico servicioApi
+@inherits PaginaAutenticada
 @rendermode InteractiveServer
 
 <PageTitle>Actividades</PageTitle>
 
-<h3>Gestión de Actividades</h3>
-
-<div class="mb-3 d-flex gap-2">
-    <button type="button" class="btn btn-outline-secondary" @onclick="ProbarConexion">Probar conexión</button>
-    <button type="button" class="btn btn-outline-primary" @onclick="CargarActividades">Mostrar todas</button>
-    <button type="button" class="btn btn-outline-dark" @onclick="LimpiarFormulario">Limpiar</button>
-</div>
-
-@if (!string.IsNullOrWhiteSpace(mensaje))
+@if (!AutenticacionVerificada)
 {
-    <div class="@claseAviso" role="alert">@mensaje</div>
-}
-
-<h4>Formulario de Actividades</h4>
-<EditForm Model="actividadActual" OnValidSubmit="GuardarSegunActividad" FormName="ActividadForm">
-    <DataAnnotationsValidator />
-    <ValidationSummary />
-    <div class="row g-3">
-        <div class="col-md-4">
-            <label class="form-label">IdEntregable</label>
-            <InputSelect class="form-control" @bind-Value="actividadActual.IdEntregable">
-                <option value="">Seleccione un entregable</option>
-                @foreach (var e in listaEntregables)
-                {
-                    <option value="@e.Id">@e.Titulo</option>
-                }
-            </InputSelect>
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando...</span>
         </div>
-        <div class="col-md-8">
-            <label class="form-label">Título</label>
-            <InputText class="form-control" @bind-Value="actividadActual.Titulo" />
-        </div>
-        <div class="col-md-12">
-            <label class="form-label">Descripción</label>
-            <InputTextArea class="form-control" rows="3" @bind-Value="actividadActual.Descripcion" />
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">Fecha Inicio</label>
-            <InputDate class="form-control" @bind-Value="actividadActual.FechaInicio" />
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">Fecha Fin Prevista</label>
-            <InputDate class="form-control" @bind-Value="actividadActual.FechaFinPrevista" />
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">Fecha Modificación</label>
-            <InputDate class="form-control" @bind-Value="actividadActual.FechaModificacion" />
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">Fecha Finalización</label>
-            <InputDate class="form-control" @bind-Value="actividadActual.FechaFinalizacion" />
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">Prioridad</label>
-            <InputNumber class="form-control" @bind-Value="actividadActual.Prioridad" />
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">Porcentaje Avance (0-100)</label>
-            <InputNumber class="form-control" @bind-Value="actividadActual.PorcentajeAvance" />
-        </div>
+        <p class="mt-2 text-muted">Verificando autenticación...</p>
     </div>
-    <div class="mt-3 d-flex flex-wrap gap-2">
-        <button type="submit" class="btn btn-primary">@textoBotonGuardar</button>
-        <button type="button" class="btn btn-secondary" @onclick="BuscarPorId">Buscar</button>
-        <button type="button" class="btn btn-danger" @onclick="EliminarActividad" disabled="@(!existeActividad)">Eliminar</button>
-    </div>
-</EditForm>
-
-<hr />
-
-@if (cargando)
-{
-    <p><em>Cargando Actividades...</em></p>
-}
-else if (listaActividades.Count == 0)
-{
-    <p>No hay Actividades disponibles.</p>
 }
 else
 {
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Id</th>
-                <th>Entregable</th>
-                <th>Título</th>
-                <th>Descripción</th>
-                <th>Fecha Inicio</th>
-                <th>Fecha Fin Prevista</th>
-                <th>Fecha Modificación</th>
-                <th>Fecha Finalización</th>
-                <th>Prioridad</th>
-                <th>% Avance</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var actividad in listaActividades)
-            {
-                <tr>
-                    <td>@actividad.Id</td>
-                    <td>@actividad.IdEntregable</td>
-                    <td>@actividad.Titulo</td>
-                    <td>@actividad.Descripcion</td>
-                    <td>@actividad.FechaInicio?.ToString("dd/MM/yyyy")</td>
-                    <td>@actividad.FechaFinPrevista?.ToString("dd/MM/yyyy")</td>
-                    <td>@actividad.FechaModificacion?.ToString("dd/MM/yyyy")</td>
-                    <td>@actividad.FechaFinalizacion?.ToString("dd/MM/yyyy")</td>
-                    <td>@actividad.Prioridad</td>
-                    <td>@actividad.PorcentajeAvance%</td>
-                    <td>
-                        <button type="button" class="btn btn-sm btn-outline-primary" 
-                                @onclick="@(() => CargarEnFormulario(actividad))">
-                            Cargar
-                        </button>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <h3>Gestión de Actividades</h3>
+
+    <div class="mb-3 d-flex gap-2">
+        <button type="button" class="btn btn-outline-primary" @onclick="CargarActividades">Mostrar todas</button>
+        <button type="button" class="btn btn-outline-dark" @onclick="LimpiarFormulario">Limpiar</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(mensaje))
+    {
+        <div class="@claseAviso" role="alert">@mensaje</div>
+    }
+
+    <h4>Formulario de Actividades</h4>
+    <EditForm Model="actividadActual" OnValidSubmit="GuardarSegunActividad" FormName="ActividadForm">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Entregable</label>
+                <InputSelect class="form-control" @bind-Value="actividadActual.IdEntregable">
+                    <option value="">Seleccione un entregable</option>
+                    @foreach (var e in listaEntregables)
+                    {
+                        <option value="@e.Id">@e.Titulo</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-8">
+                <label class="form-label">Título</label>
+                <InputText class="form-control" @bind-Value="actividadActual.Titulo" />
+            </div>
+            <div class="col-md-12">
+                <label class="form-label">Descripción</label>
+                <InputTextArea class="form-control" rows="3" @bind-Value="actividadActual.Descripcion" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Fecha Inicio</label>
+                <InputDate class="form-control" @bind-Value="actividadActual.FechaInicio" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Fecha Fin Prevista</label>
+                <InputDate class="form-control" @bind-Value="actividadActual.FechaFinPrevista" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Fecha Modificación</label>
+                <InputDate class="form-control" @bind-Value="actividadActual.FechaModificacion" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Fecha Finalización</label>
+                <InputDate class="form-control" @bind-Value="actividadActual.FechaFinalizacion" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Prioridad</label>
+                <InputNumber class="form-control" @bind-Value="actividadActual.Prioridad" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Porcentaje Avance (0-100)</label>
+                <InputNumber class="form-control" @bind-Value="actividadActual.PorcentajeAvance" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Título para buscar</label>
+                <InputText class="form-control" @bind-Value="tituloBusqueda" placeholder="Ingrese el título" />
+            </div>
+        </div>
+        <div class="mt-3 d-flex flex-wrap gap-2">
+            <button type="submit" class="btn btn-primary">@textoBotonGuardar</button>
+            <button type="button" class="btn btn-secondary" @onclick="BuscarPorTitulo">Buscar por Título</button>
+            <button type="button" class="btn btn-danger" @onclick="EliminarActividad" disabled="@(!existeActividad)">Eliminar</button>
+        </div>
+    </EditForm>
+
+    <hr />
+
+    @if (cargando)
+    {
+        <div class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+            <p class="mt-2 text-muted">Cargando actividades...</p>
+        </div>
+    }
+    else if (listaActividades.Count == 0)
+    {
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>No hay actividades disponibles.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-primary">
+                    <tr>
+                        <th>ID</th>
+                        <th>Entregable</th>
+                        <th>Título</th>
+                        <th>Descripción</th>
+                        <th>Fecha Inicio</th>
+                        <th>Fecha Fin Prevista</th>
+                        <th>Prioridad</th>
+                        <th>% Avance</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var actividad in listaActividades)
+                    {
+                        <tr>
+                            <td>@actividad.Id</td>
+                            <td class="fw-bold">@ObtenerNombreEntregable(actividad.IdEntregable)</td>
+                            <td>@actividad.Titulo</td>
+                            <td>@actividad.Descripcion</td>
+                            <td>@actividad.FechaInicio?.ToString("dd/MM/yyyy")</td>
+                            <td>@actividad.FechaFinPrevista?.ToString("dd/MM/yyyy")</td>
+                            <td>@actividad.Prioridad</td>
+                            <td>
+                                <span class="badge @GetAvanceBadgeClass(actividad.PorcentajeAvance)">
+                                    @actividad.PorcentajeAvance%
+                                </span>
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-outline-primary" 
+                                        @onclick="@(() => CargarEnFormulario(actividad))">
+                                    <i class="bi bi-pencil"></i> Editar
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="mt-3">
+            <span class="badge bg-primary">Total: @listaActividades.Count actividades</span>
+        </div>
+    }
 }
 
 @code {
     private List<Actividad> listaActividades = new();
     private List<Entregable> listaEntregables = new();
+    private Dictionary<int, string> entregablesDict = new();
     
     [SupplyParameterFromForm]
     private Actividad actividadActual { get; set; } = new();
     
+    private string tituloBusqueda = "";
     private bool existeActividad = false;
     private string textoBotonGuardar = "Crear";
     private string mensaje = "";
@@ -143,10 +176,11 @@ else
     private bool cargando = false;
     private const string urlBaseApi = "api/actividad";
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAutenticacionVerificada()
     {
         await CargarActividades();
         await CargarEntregables();
+        StateHasChanged();
     }
 
     private async Task CargarActividades()
@@ -154,16 +188,16 @@ else
         try
         {
             cargando = true;
-            var cliente = fabricaHttp.CreateClient("ApiActividades");
-            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<Actividad>>>(urlBaseApi);
-            listaActividades = respuesta?.Datos ?? new List<Actividad>();
-            mensaje = $"Se cargaron {listaActividades.Count} Actividad(es).";
+            var respuesta = await servicioApi.ObtenerTodosAsync<Actividad>("actividad");
+            listaActividades = respuesta ?? new List<Actividad>();
+            mensaje = $"Se cargaron {listaActividades.Count} actividad(es).";
             claseAviso = "alert alert-success";
         }
         catch (Exception error)
         {
-            mensaje = $"Error al listar Actividades: {error.Message}";
+            mensaje = $"Error al listar actividades: {error.Message}";
             claseAviso = "alert alert-danger";
+            listaActividades = new List<Actividad>();
         }
         finally
         {
@@ -175,23 +209,22 @@ else
     {
         try
         {
-            var cliente = fabricaHttp.CreateClient("ApiEntregables");
-            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<Entregable>>>("api/entregable");
-            listaEntregables = respuesta?.Datos ?? new List<Entregable>();
+            var respuesta = await servicioApi.ObtenerTodosAsync<Entregable>("entregable");
+            listaEntregables = respuesta ?? new List<Entregable>();
+            entregablesDict = listaEntregables.ToDictionary(e => e.Id, e => e.Titulo);
         }
         catch (Exception error)
         {
-            mensaje = $"Error al cargar entregables: {error.Message}";
-            claseAviso = "alert alert-danger";
+            Console.WriteLine($"Error al cargar entregables: {error.Message}");
         }
     }
 
-    private async Task BuscarPorId()
+    private async Task BuscarPorTitulo()
     {
         LimpiarMensajes();
-        if (actividadActual.Id <= 0)
+        if (string.IsNullOrWhiteSpace(tituloBusqueda))
         {
-            mensaje = "Debe indicar un ID válido para buscar.";
+            mensaje = "Debe ingresar un título para buscar.";
             claseAviso = "alert alert-warning";
             return;
         }
@@ -199,12 +232,13 @@ else
         try
         {
             var cliente = fabricaHttp.CreateClient("ApiActividades");
-            var ruta = $"{urlBaseApi}/id/{actividadActual.Id}";
+            var ruta = $"{urlBaseApi}/titulo/{Uri.EscapeDataString(tituloBusqueda.Trim())}";
             var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<Actividad>>>(ruta);
-            var encontrado = respuesta?.Datos?.FirstOrDefault();
+            var encontradas = respuesta?.Datos ?? new List<Actividad>();
 
-            if (encontrado is not null)
+            if (encontradas.Any())
             {
+                var encontrado = encontradas.First();
                 actividadActual = new Actividad
                 {
                     Id = encontrado.Id,
@@ -220,14 +254,14 @@ else
                 };
                 existeActividad = true;
                 textoBotonGuardar = "Actualizar";
-                mensaje = "Actividad cargada en el formulario.";
+                mensaje = $"Se encontró '{encontrado.Titulo}'. Cargado en el formulario.";
                 claseAviso = "alert alert-success";
             }
             else
             {
                 existeActividad = false;
                 textoBotonGuardar = "Crear";
-                mensaje = "Actividad no encontrada.";
+                mensaje = $"No se encontraron actividades con el título '{tituloBusqueda}'.";
                 claseAviso = "alert alert-warning";
             }
         }
@@ -235,7 +269,7 @@ else
         {
             existeActividad = false;
             textoBotonGuardar = "Crear";
-            mensaje = $"Error al buscar Actividad: {error.Message}";
+            mensaje = $"Error al buscar actividad: {error.Message}";
             claseAviso = "alert alert-danger";
         }
     }
@@ -284,13 +318,13 @@ else
             else
             {
                 var detalle = await respuesta.Content.ReadAsStringAsync();
-                mensaje = $"No se pudo crear la Actividad. Detalle: {detalle}";
+                mensaje = $"No se pudo crear la actividad. Detalle: {detalle}";
                 claseAviso = "alert alert-danger";
             }
         }
         catch (Exception error)
         {
-            mensaje = $"Error al crear Actividad: {error.Message}";
+            mensaje = $"Error al crear actividad: {error.Message}";
             claseAviso = "alert alert-danger";
         }
     }
@@ -340,13 +374,13 @@ else
             else
             {
                 var detalle = await respuesta.Content.ReadAsStringAsync();
-                mensaje = $"No se pudo actualizar la Actividad. Detalle: {detalle}";
+                mensaje = $"No se pudo actualizar la actividad. Detalle: {detalle}";
                 claseAviso = "alert alert-danger";
             }
         }
         catch (Exception error)
         {
-            mensaje = $"Error al actualizar Actividad: {error.Message}";
+            mensaje = $"Error al actualizar actividad: {error.Message}";
             claseAviso = "alert alert-danger";
         }
     }
@@ -377,13 +411,13 @@ else
             else
             {
                 var detalle = await respuesta.Content.ReadAsStringAsync();
-                mensaje = $"No se pudo eliminar la Actividad. Detalle: {detalle}";
+                mensaje = $"No se pudo eliminar la actividad. Detalle: {detalle}";
                 claseAviso = "alert alert-danger";
             }
         }
         catch (Exception error)
         {
-            mensaje = $"Error al eliminar Actividad: {error.Message}";
+            mensaje = $"Error al eliminar actividad: {error.Message}";
             claseAviso = "alert alert-danger";
         }
     }
@@ -444,9 +478,28 @@ else
     private void LimpiarFormulario()
     {
         actividadActual = new Actividad();
+        tituloBusqueda = "";
         existeActividad = false;
         textoBotonGuardar = "Crear";
         LimpiarMensajes();
+    }
+
+    private string ObtenerNombreEntregable(int idEntregable)
+    {
+        return entregablesDict.ContainsKey(idEntregable) ? entregablesDict[idEntregable] : "No encontrado";
+    }
+
+    private string GetAvanceBadgeClass(int? porcentajeAvance)
+    {
+        return porcentajeAvance switch
+        {
+            null => "bg-secondary",
+            >= 100 => "bg-success",
+            >= 75 => "bg-primary",
+            >= 50 => "bg-info",
+            >= 25 => "bg-warning",
+            _ => "bg-danger"
+        };
     }
 
     private bool Vacio(dynamic a)

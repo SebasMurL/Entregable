@@ -1,102 +1,134 @@
 @page "/objetivosestrategicos"
-
 @using System.Net.Http.Json
 @using FrontendBlazorApi.Models
+@using FrontendBlazorApi.Servicios
+@using FrontendBlazorApi.Components
 @inject IHttpClientFactory fabricaHttp
+@inject ServicioApiGenerico servicioApi
+@inherits PaginaAutenticada
 @rendermode InteractiveServer
 
 <PageTitle>Objetivos Estratégicos</PageTitle>
 
-<h3>Gestión de Objetivos Estratégicos</h3>
-
-<div class="mb-3 d-flex gap-2">
-    <button type="button" class="btn btn-outline-secondary" @onclick="ProbarConexion">Probar conexión</button>
-    <button type="button" class="btn btn-outline-primary" @onclick="CargarObjetivosEstrategicos">Mostrar todos</button>
-    <button type="button" class="btn btn-outline-dark" @onclick="LimpiarFormulario">Limpiar</button>
-</div>
-
-@if (!string.IsNullOrWhiteSpace(mensaje))
+@if (!AutenticacionVerificada)
 {
-    <div class="@claseAviso" role="alert">@mensaje</div>
-}
-
-<h4>Formulario de Objetivos Estratégicos</h4>
-<EditForm Model="objetivoEstrategicoActual" OnValidSubmit="GuardarSegunObjetivoEstrategico" FormName="ObjetivoEstrategicoForm">
-    <DataAnnotationsValidator />
-    <ValidationSummary />
-    <div class="row g-3">
-        <div class="col-md-4">
-            <label class="form-label">IdVariable (Variable Estratégica)</label>
-            <select class="form-control" @bind="objetivoEstrategicoActual.IdVariable">
-                <option value="0">Seleccione una variable estratégica</option>
-                @foreach (var variable in listaVariablesEstrategicas)
-                {
-                    <option value="@variable.Id">@variable.Titulo</option>
-                }
-            </select>
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando...</span>
         </div>
-        <div class="col-md-5">
-            <label class="form-label">Titulo</label>
-            <InputText class="form-control" @bind-Value="objetivoEstrategicoActual.Titulo" />
-        </div>
-        <div class="col-md-6">
-            <label class="form-label">Descripcion</label>
-            <InputText class="form-control" @bind-Value="objetivoEstrategicoActual.Descripcion" />
-        </div>
+        <p class="mt-2 text-muted">Verificando autenticación...</p>
     </div>
-    <div class="mt-3 d-flex flex-wrap gap-2">
-        <button type="submit" class="btn btn-primary">@textoBotonGuardar</button>
-        <button type="button" class="btn btn-secondary" @onclick="BuscarPorId">Buscar</button>
-        <button type="button" class="btn btn-danger" @onclick="EliminarObjetivoEstrategico" disabled="@(!existeObjetivoEstrategico)">Eliminar</button>
-    </div>
-</EditForm>
-
-<hr />
-
-@if (cargando)
-{
-    <p><em>Cargando Objetivos Estratégicos...</em></p>
-}
-else if (listaObjetivosEstrategicos.Count == 0)
-{
-    <p>No hay Objetivos Estratégicos disponibles.</p>
 }
 else
 {
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>IdVariable</th>
-                <th>Titulo</th>
-                <th>Descripción</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var objetivoEstrategico in listaObjetivosEstrategicos)
-            {
-                <tr>
-                    <td>@objetivoEstrategico.IdVariable</td>
-                    <td>@objetivoEstrategico.Titulo</td>
-                    <td>@objetivoEstrategico.Descripcion</td>
-                    <td>
-                        <button type="button" class="btn btn-sm btn-outline-primary" 
-                                @onclick="@(() => CargarEnFormulario(objetivoEstrategico))">
-                            Cargar
-                        </button>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <h3>Gestión de Objetivos Estratégicos</h3>
+
+    <div class="mb-3 d-flex gap-2">
+        <button type="button" class="btn btn-outline-primary" @onclick="CargarObjetivosEstrategicos">Mostrar todos</button>
+        <button type="button" class="btn btn-outline-dark" @onclick="LimpiarFormulario">Limpiar</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(mensaje))
+    {
+        <div class="@claseAviso" role="alert">@mensaje</div>
+    }
+
+    <h4>Formulario de Objetivo Estratégico</h4>
+    <EditForm Model="objetivoEstrategicoActual" OnValidSubmit="GuardarSegunEstado" FormName="ObjetivoEstrategicoForm">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">ID</label>
+                <InputNumber class="form-control" @bind-Value="objetivoEstrategicoActual.Id" readonly="@existeObjetivoEstrategico" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Variable Estratégica</label>
+                <select class="form-control" @bind="objetivoEstrategicoActual.IdVariable">
+                    <option value="0">Seleccione una variable</option>
+                    @foreach (var variable in listaVariablesEstrategicas)
+                    {
+                        <option value="@variable.Id">@variable.Titulo</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label">Título</label>
+                <InputText class="form-control" @bind-Value="objetivoEstrategicoActual.Titulo" />
+            </div>
+            <div class="col-md-12">
+                <label class="form-label">Descripción</label>
+                <InputTextArea class="form-control" @bind-Value="objetivoEstrategicoActual.Descripcion" />
+            </div>
+        </div>
+        <div class="mt-3 d-flex flex-wrap gap-2">
+            <button type="submit" class="btn btn-primary">@textoBotonGuardar</button>
+            <button type="button" class="btn btn-secondary" @onclick="BuscarPorId">Buscar</button>
+            <button type="button" class="btn btn-danger" @onclick="EliminarObjetivoEstrategico" disabled="@(!existeObjetivoEstrategico)">Eliminar</button>
+        </div>
+    </EditForm>
+
+    <hr />
+
+    @if (cargando)
+    {
+        <div class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+            <p class="mt-2 text-muted">Cargando objetivos estratégicos...</p>
+        </div>
+    }
+    else if (listaObjetivosEstrategicos.Count == 0)
+    {
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>No hay objetivos estratégicos disponibles.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-primary">
+                    <tr>
+                        <th>ID</th>
+                        <th>Variable Estratégica</th>
+                        <th>Título</th>
+                        <th>Descripción</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var objetivo in listaObjetivosEstrategicos)
+                    {
+                        <tr>
+                            <td>@objetivo.Id</td>
+                            <td class="fw-bold">@ObtenerNombreVariable(objetivo.IdVariable)</td>
+                            <td>@objetivo.Titulo</td>
+                            <td>@objetivo.Descripcion</td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-outline-primary" 
+                                        @onclick="@(() => CargarEnFormulario(objetivo))">
+                                    <i class="bi bi-pencil"></i> Editar
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="mt-3">
+            <span class="badge bg-primary">Total: @listaObjetivosEstrategicos.Count objetivos estratégicos</span>
+        </div>
+    }
 }
 
 @code {
-
     private List<ObjetivoEstrategico> listaObjetivosEstrategicos = new();
     [SupplyParameterFromForm]
     private ObjetivoEstrategico objetivoEstrategicoActual { get; set; } = new();
-    private List<VariableEstrategica> listaVariablesEstrategicas = new List<VariableEstrategica>();
+    private List<VariableEstrategica> listaVariablesEstrategicas = new();
     private bool existeObjetivoEstrategico = false;
     private string textoBotonGuardar = "Crear";
     private string mensaje = "";
@@ -104,10 +136,11 @@ else
     private bool cargando = false;
     private const string urlBaseApi = "api/objetivoestrategico";
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAutenticacionVerificada()
     {
         await CargarObjetivosEstrategicos();
         await CargarVariablesEstrategicas();
+        StateHasChanged();
     }
 
     private async Task CargarObjetivosEstrategicos()
@@ -115,16 +148,16 @@ else
         try
         {
             cargando = true;
-            var cliente = fabricaHttp.CreateClient("ApiObjetivosEstrategicos");
-            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<ObjetivoEstrategico>>>(urlBaseApi);
-            listaObjetivosEstrategicos = respuesta?.Datos ?? new List<ObjetivoEstrategico>();
-            mensaje = $"Se cargaron {listaObjetivosEstrategicos.Count} Objetivo(s) Estratégico(s).";
+            var respuesta = await servicioApi.ObtenerTodosAsync<ObjetivoEstrategico>("objetivoestrategico");
+            listaObjetivosEstrategicos = respuesta ?? new List<ObjetivoEstrategico>();
+            mensaje = $"Se cargaron {listaObjetivosEstrategicos.Count} objetivo(s) estratégico(s).";
             claseAviso = "alert alert-success";
         }
         catch (Exception error)
         {
-            mensaje = $"Error al listar Objetivos Estratégicos: {error.Message}";
+            mensaje = $"Error al listar objetivos estratégicos: {error.Message}";
             claseAviso = "alert alert-danger";
+            listaObjetivosEstrategicos = new List<ObjetivoEstrategico>();
         }
         finally
         {
@@ -136,21 +169,13 @@ else
     {
         try
         {
-            cargando = true;
-            var cliente = fabricaHttp.CreateClient("ApiVariableEstrategicas");
-            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<VariableEstrategica>>>("api/variableestrategica");
-            listaVariablesEstrategicas = respuesta?.Datos ?? new List<VariableEstrategica>();
-            mensaje = $"Se cargaron {listaVariablesEstrategicas.Count} variable(s) estratégica(s).";
-            claseAviso = "alert alert-success";
+            var respuesta = await servicioApi.ObtenerTodosAsync<VariableEstrategica>("variableestrategica");
+            listaVariablesEstrategicas = respuesta ?? new List<VariableEstrategica>();
         }
         catch (Exception error)
         {
-            mensaje = $"Error al listar variables estratégicas: {error.Message}";
-            claseAviso = "alert alert-danger";
-        }
-        finally
-        {
-            cargando = false;
+            mensaje = $"Error al cargar variables estratégicas: {error.Message}";
+            claseAviso = "alert alert-warning";
         }
     }
 
@@ -182,14 +207,14 @@ else
                 };
                 existeObjetivoEstrategico = true;
                 textoBotonGuardar = "Actualizar";
-                mensaje = "Objetivo Estratégico cargado en el formulario.";
+                mensaje = "Objetivo estratégico cargado en el formulario.";
                 claseAviso = "alert alert-success";
             }
             else
             {
                 existeObjetivoEstrategico = false;
                 textoBotonGuardar = "Crear";
-                mensaje = "Objetivo Estratégico no encontrado.";
+                mensaje = "Objetivo estratégico no encontrado.";
                 claseAviso = "alert alert-warning";
             }
         }
@@ -197,12 +222,12 @@ else
         {
             existeObjetivoEstrategico = false;
             textoBotonGuardar = "Crear";
-            mensaje = $"Error al buscar Objetivo Estratégico: {error.Message}";
+            mensaje = $"Error al buscar objetivo estratégico: {error.Message}";
             claseAviso = "alert alert-danger";
         }
     }
 
-    private async Task GuardarSegunObjetivoEstrategico()
+    private async Task GuardarSegunEstado()
     {
         if (existeObjetivoEstrategico)
             await ActualizarObjetivoEstrategico();
@@ -215,22 +240,24 @@ else
         LimpiarMensajes();
         try
         {
-            // Crear un objeto sin el campo Id para la solicitud POST
-            var objetivoEstrategicoParaCrear = new
+            var objetivoParaCrear = new
             {
                 IdVariable = objetivoEstrategicoActual.IdVariable,
                 Titulo = objetivoEstrategicoActual.Titulo,
                 Descripcion = objetivoEstrategicoActual.Descripcion
             };
-            if(Vacio(objetivoEstrategicoParaCrear))
+            
+            if (Vacio(objetivoParaCrear))
             {
                 return;
             }
+
             var cliente = fabricaHttp.CreateClient("ApiObjetivosEstrategicos");
-            var respuesta = await cliente.PostAsJsonAsync(urlBaseApi, objetivoEstrategicoParaCrear);
+            var respuesta = await cliente.PostAsJsonAsync(urlBaseApi, objetivoParaCrear);
+            
             if (respuesta.IsSuccessStatusCode)
             {
-                mensaje = "Objetivo Estratégico creado correctamente.";
+                mensaje = "Objetivo estratégico creado correctamente.";
                 claseAviso = "alert alert-success";
                 await CargarObjetivosEstrategicos();
                 LimpiarFormulario();
@@ -238,13 +265,13 @@ else
             else
             {
                 var detalle = await respuesta.Content.ReadAsStringAsync();
-                mensaje = $"No se pudo crear el Objetivo Estratégico. Detalle: {detalle}";
+                mensaje = $"No se pudo crear el objetivo estratégico. Detalle: {detalle}";
                 claseAviso = "alert alert-danger";
             }
         }
         catch (Exception error)
         {
-            mensaje = $"Error al crear Objetivo Estratégico: {error.Message}";
+            mensaje = $"Error al crear objetivo estratégico: {error.Message}";
             claseAviso = "alert alert-danger";
         }
     }
@@ -261,23 +288,25 @@ else
 
         try
         {
-            // Crear un objeto sin el campo Id para la solicitud PUT
-            var objetivoEstrategicoParaActualizar = new
+            var objetivoParaActualizar = new
             {
                 IdVariable = objetivoEstrategicoActual.IdVariable,
                 Titulo = objetivoEstrategicoActual.Titulo,
                 Descripcion = objetivoEstrategicoActual.Descripcion
             };
-            if(Vacio(objetivoEstrategicoParaActualizar))
+            
+            if (Vacio(objetivoParaActualizar))
             {
                 return;
             }
+
             var cliente = fabricaHttp.CreateClient("ApiObjetivosEstrategicos");
             var ruta = $"{urlBaseApi}/id/{objetivoEstrategicoActual.Id}";
-            var respuesta = await cliente.PutAsJsonAsync(ruta, objetivoEstrategicoParaActualizar);
+            var respuesta = await cliente.PutAsJsonAsync(ruta, objetivoParaActualizar);
+            
             if (respuesta.IsSuccessStatusCode)
             {
-                mensaje = "Objetivo Estratégico actualizado correctamente.";
+                mensaje = "Objetivo estratégico actualizado correctamente.";
                 claseAviso = "alert alert-success";
                 await CargarObjetivosEstrategicos();
                 existeObjetivoEstrategico = true;
@@ -286,13 +315,13 @@ else
             else
             {
                 var detalle = await respuesta.Content.ReadAsStringAsync();
-                mensaje = $"No se pudo actualizar el Objetivo Estratégico. Detalle: {detalle}";
+                mensaje = $"No se pudo actualizar el objetivo estratégico. Detalle: {detalle}";
                 claseAviso = "alert alert-danger";
             }
         }
         catch (Exception error)
         {
-            mensaje = $"Error al actualizar Objetivo Estratégico: {error.Message}";
+            mensaje = $"Error al actualizar objetivo estratégico: {error.Message}";
             claseAviso = "alert alert-danger";
         }
     }
@@ -312,9 +341,10 @@ else
             var cliente = fabricaHttp.CreateClient("ApiObjetivosEstrategicos");
             var ruta = $"{urlBaseApi}/id/{objetivoEstrategicoActual.Id}";
             var respuesta = await cliente.DeleteAsync(ruta);
+            
             if (respuesta.IsSuccessStatusCode)
             {
-                mensaje = "Objetivo Estratégico eliminado correctamente.";
+                mensaje = "Objetivo estratégico eliminado correctamente.";
                 claseAviso = "alert alert-success";
                 await CargarObjetivosEstrategicos();
                 LimpiarFormulario();
@@ -322,13 +352,13 @@ else
             else
             {
                 var detalle = await respuesta.Content.ReadAsStringAsync();
-                mensaje = $"No se pudo eliminar el Objetivo Estratégico. Detalle: {detalle}";
+                mensaje = $"No se pudo eliminar el objetivo estratégico. Detalle: {detalle}";
                 claseAviso = "alert alert-danger";
             }
         }
         catch (Exception error)
         {
-            mensaje = $"Error al eliminar Objetivo Estratégico: {error.Message}";
+            mensaje = $"Error al eliminar objetivo estratégico: {error.Message}";
             claseAviso = "alert alert-danger";
         }
     }
@@ -347,7 +377,7 @@ else
             }
             else
             {
-                mensaje = $"La API respondió con Objetivo Estratégico {(int)respuesta.StatusCode}.";
+                mensaje = $"La API respondió con estado {(int)respuesta.StatusCode}.";
                 claseAviso = "alert alert-warning";
             }
         }
@@ -358,19 +388,25 @@ else
         }
     }
 
-    private void CargarEnFormulario(ObjetivoEstrategico objetivoEstrategico)
+    private void CargarEnFormulario(ObjetivoEstrategico objetivo)
     {
         objetivoEstrategicoActual = new ObjetivoEstrategico
         {
-            Id = objetivoEstrategico.Id,
-            IdVariable = objetivoEstrategico.IdVariable,
-            Titulo = objetivoEstrategico.Titulo,
-            Descripcion = objetivoEstrategico.Descripcion
+            Id = objetivo.Id,
+            IdVariable = objetivo.IdVariable,
+            Titulo = objetivo.Titulo,
+            Descripcion = objetivo.Descripcion
         };
         existeObjetivoEstrategico = true;
         textoBotonGuardar = "Actualizar";
-        mensaje = "Objetivo Estratégico seleccionado desde el listado.";
+        mensaje = "Objetivo estratégico seleccionado desde el listado.";
         claseAviso = "alert alert-info";
+    }
+
+    private string ObtenerNombreVariable(int idVariable)
+    {
+        var variable = listaVariablesEstrategicas.FirstOrDefault(v => v.Id == idVariable);
+        return variable?.Titulo ?? "No encontrada";
     }
 
     private void LimpiarMensajes()
@@ -386,14 +422,23 @@ else
         textoBotonGuardar = "Crear";
         LimpiarMensajes();
     }
-
-    private bool Vacio(dynamic o)
+    
+    private bool Vacio(dynamic p)
     {
-        if(string.IsNullOrWhiteSpace(o.Titulo) || string.IsNullOrWhiteSpace(o.Descripcion))
+        if (p.IdVariable <= 0)
         {
-            mensaje="Error: Campo Vacio";
+            mensaje = "Error: Debe seleccionar una variable estratégica";
+            claseAviso = "alert alert-warning";
             return true;
         }
+        
+        if (string.IsNullOrWhiteSpace(p.Titulo) || string.IsNullOrWhiteSpace(p.Descripcion))
+        {
+            mensaje = "Error: Los campos Título y Descripción son obligatorios";
+            claseAviso = "alert alert-warning";
+            return true;
+        }
+        
         return false;
     }
 }
