@@ -1,88 +1,107 @@
 @page "/estados"
-
 @using System.Net.Http.Json
 @using FrontendBlazorApi.Models
+@using FrontendBlazorApi.Servicios
+@using FrontendBlazorApi.Components
+@using System.Text.Json
 @inject IHttpClientFactory fabricaHttp
+@inject ServicioApiGenerico servicioApi
+@inherits PaginaAutenticada
 @rendermode InteractiveServer
 
 <PageTitle>Estados</PageTitle>
 
-<h3>Gestión de Estados</h3>
-
-<div class="mb-3 d-flex gap-2">
-    <button type="button" class="btn btn-outline-secondary" @onclick="ProbarConexion">Probar conexión</button>
-    <button type="button" class="btn btn-outline-primary" @onclick="CargarEstados">Mostrar todos</button>
-    <button type="button" class="btn btn-outline-dark" @onclick="LimpiarFormulario">Limpiar</button>
-</div>
-
-@if (!string.IsNullOrWhiteSpace(mensaje))
+@if (!AutenticacionVerificada)
 {
-    <div class="@claseAviso" role="alert">@mensaje</div>
-}
-
-<h4>Formulario de Estado</h4>
-<EditForm Model="estadoActual" OnValidSubmit="GuardarSegunEstado" FormName="EstadoForm">
-    <DataAnnotationsValidator />
-    <ValidationSummary />
-    <div class="row g-3">
-        <div class="col-md-3">
-            <label class="form-label">ID</label>
-            <InputNumber class="form-control" @bind-Value="estadoActual.Id" readonly="@existeEstado" />
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando...</span>
         </div>
-        <div class="col-md-4">
-            <label class="form-label">Nombre</label>
-            <InputText class="form-control" @bind-Value="estadoActual.Nombre" />
-        </div>
-        <div class="col-md-5">
-            <label class="form-label">Descripción</label>
-            <InputText class="form-control" @bind-Value="estadoActual.Descripcion" />
-        </div>
+        <p class="mt-2 text-muted">Verificando autenticación...</p>
     </div>
-    <div class="mt-3 d-flex flex-wrap gap-2">
-        <button type="submit" class="btn btn-primary">@textoBotonGuardar</button>
-        <button type="button" class="btn btn-secondary" @onclick="BuscarPorId">Buscar</button>
-        <button type="button" class="btn btn-danger" @onclick="EliminarEstado" disabled="@(!existeEstado)">Eliminar</button>
-    </div>
-</EditForm>
-
-<hr />
-
-@if (cargando)
-{
-    <p><em>Cargando estados...</em></p>
-}
-else if (listaEstados.Count == 0)
-{
-    <p>No hay estados disponibles.</p>
 }
 else
 {
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Nombre</th>
-                <th>Descripción</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var estado in listaEstados)
-            {
+    <h3>Gestión de Estados</h3>
+
+    <div class="mb-3 d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary" @onclick="ProbarConexion">Probar conexión</button>
+        <button type="button" class="btn btn-outline-primary" @onclick="CargarEstados">Mostrar todos</button>
+        <button type="button" class="btn btn-outline-dark" @onclick="LimpiarFormulario">Limpiar</button>
+        <button type="button" class="btn btn-info" @onclick="VerificarEstadoAutenticacion">
+    Verificar Autenticación
+</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(mensaje))
+    {
+        <div class="@claseAviso" role="alert">@mensaje</div>
+    }
+
+    <h4>Formulario de Estado</h4>
+    <EditForm Model="estadoActual" OnValidSubmit="GuardarSegunEstado" FormName="EstadoForm">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">ID</label>
+                <InputNumber class="form-control" @bind-Value="estadoActual.Id" readonly="@existeEstado" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Nombre</label>
+                <InputText class="form-control" @bind-Value="estadoActual.Nombre" />
+            </div>
+            <div class="col-md-5">
+                <label class="form-label">Descripción</label>
+                <InputText class="form-control" @bind-Value="estadoActual.Descripcion" />
+            </div>
+        </div>
+        <div class="mt-3 d-flex flex-wrap gap-2">
+            <button type="submit" class="btn btn-primary">@textoBotonGuardar</button>
+            <button type="button" class="btn btn-secondary" @onclick="BuscarPorId">Buscar</button>
+            <button type="button" class="btn btn-danger" @onclick="EliminarEstado" disabled="@(!existeEstado)">Eliminar</button>
+        </div>
+    </EditForm>
+
+    <hr />
+
+    @if (cargando)
+    {
+        <p><em>Cargando estados...</em></p>
+    }
+    else if (listaEstados.Count == 0)
+    {
+        <p>No hay estados disponibles.</p>
+    }
+    else
+    {
+        <table class="table table-striped">
+            <thead>
                 <tr>
-                    <td>@estado.Id</td>
-                    <td>@estado.Nombre</td>
-                    <td>@estado.Descripcion</td>
-                    <td>
-                        <button type="button" class="btn btn-sm btn-outline-primary" 
-                                @onclick="@(() => CargarEnFormulario(estado))">
-                            Cargar
-                        </button>
-                    </td>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Descripción</th>
+                    <th>Acciones</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var estado in listaEstados)
+                {
+                    <tr>
+                        <td>@estado.Id</td>
+                        <td>@estado.Nombre</td>
+                        <td>@estado.Descripcion</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-primary" 
+                                    @onclick="@(() => CargarEnFormulario(estado))">
+                                Cargar
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
 }
 
 @code {
@@ -96,33 +115,105 @@ else
     private bool cargando = false;
     private const string urlBaseApi = "api/estado";
 
-    protected override async Task OnInitializedAsync()
+protected override async Task OnAutenticacionVerificada()
+{
+    await CargarEstados(); // Usar esta versión temporalmente
+    StateHasChanged();
+}
+private async Task VerificarEstadoAutenticacion()
+{
+    try
     {
-        await CargarEstados();
-    }
-
-    private async Task CargarEstados()
-    {
-        try
+        var autenticado = await ServicioAuth.EstaAutenticadoAsync();
+        var rutaActual = "/estados";
+        var tienePermiso = await ServicioAuth.TienePermisoParaRutaAsync(rutaActual);
+        
+        Console.WriteLine($"=== DIAGNÓSTICO AUTENTICACIÓN ===");
+        Console.WriteLine($"Autenticado: {autenticado}");
+        Console.WriteLine($"Tiene permiso para /estados: {tienePermiso}");
+        Console.WriteLine($"Ruta verificada: {rutaActual}");
+        
+        mensaje = $"Autenticado: {autenticado} | Permiso /estados: {tienePermiso}";
+        
+        if (autenticado && !tienePermiso)
         {
-            cargando = true;
-            var cliente = fabricaHttp.CreateClient("ApiEstados");
-            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<Estado>>>(urlBaseApi);
-            listaEstados = respuesta?.Datos ?? new List<Estado>();
-            mensaje = $"Se cargaron {listaEstados.Count} estado(s).";
+            mensaje += " ⚠️ - Estás autenticado pero sin permisos para esta ruta";
+            claseAviso = "alert alert-warning";
+        }
+        else if (autenticado && tienePermiso)
+        {
+            mensaje += " ✅ - Tienes acceso completo";
             claseAviso = "alert alert-success";
         }
-        catch (Exception error)
+        else
         {
-            mensaje = $"Error al listar estados: {error.Message}";
             claseAviso = "alert alert-danger";
         }
-        finally
+    }
+    catch (Exception ex)
+    {
+        mensaje = $"Error en verificación: {ex.Message}";
+        claseAviso = "alert alert-danger";
+        Console.WriteLine($"ERROR: {ex}");
+    }
+}
+
+private async Task CargarEstados()
+{
+    try
+    {
+        Console.WriteLine("🔍 CARGANDO ESTADOS...");
+        cargando = true;
+        StateHasChanged();
+
+        // Usar el servicio API genérico que ya maneja autenticación
+        var respuesta = await servicioApi.ObtenerTodosAsync<Estado>("estado");
+        
+        if (respuesta != null && respuesta.Any())
         {
-            cargando = false;
+            listaEstados = respuesta;
+            mensaje = $"✅ Se cargaron {listaEstados.Count} estado(s)";
+            claseAviso = "alert alert-success";
+            Console.WriteLine($"📊 Estados cargados: {listaEstados.Count}");
+        }
+        else
+        {
+            CargarEstadosDePrueba();
+            mensaje = "No se pudieron cargar estados desde API, usando datos de prueba";
+            claseAviso = "alert alert-warning";
         }
     }
+    catch (Exception error)
+    {
+        Console.WriteLine($"💥 ERROR: {error.Message}");
+        CargarEstadosDePrueba();
+        mensaje = $"Error: {error.Message}, usando datos de prueba";
+        claseAviso = "alert alert-warning";
+    }
+    finally
+    {
+        cargando = false;
+        StateHasChanged();
+    }
+}
 
+private void CargarEstadosDePrueba()
+{
+    listaEstados = new List<Estado>
+    {
+        new Estado { Id = 1, Nombre = "Pendiente", Descripcion = "Estado inicial de un proyecto o actividad" },
+        new Estado { Id = 2, Nombre = "En Progreso", Descripcion = "Proyecto o actividad en desarrollo" },
+        new Estado { Id = 3, Nombre = "Completado", Descripcion = "Proyecto o actividad finalizado exitosamente" },
+        new Estado { Id = 4, Nombre = "En Pausa", Descripcion = "Proyecto o actividad temporalmente detenido" },
+        new Estado { Id = 5, Nombre = "Cancelado", Descripcion = "Proyecto o actividad cancelado permanentemente" },
+        new Estado { Id = 6, Nombre = "Aprobado", Descripcion = "Estado aprobado para presupuestos o documentos" },
+        new Estado { Id = 7, Nombre = "Rechazado", Descripcion = "Estado rechazado para presupuestos o documentos" },
+        new Estado { Id = 8, Nombre = "En Revisión", Descripcion = "Proyecto o documento en proceso de revisión" }
+    };
+    Console.WriteLine($"📋 Datos de prueba cargados: {listaEstados.Count} estados");
+}
+
+    // MANTÉN TODOS LOS DEMÁS MÉTODOS EXACTAMENTE COMO ESTÁN:
     private async Task BuscarPorId()
     {
         LimpiarMensajes();
@@ -351,6 +442,7 @@ else
         textoBotonGuardar = "Crear";
         LimpiarMensajes();
     }
+    
     private bool Vacio(dynamic p)
     {
         if(string.IsNullOrWhiteSpace(p.Nombre)||string.IsNullOrWhiteSpace(p.Descripcion))

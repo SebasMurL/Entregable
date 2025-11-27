@@ -1,0 +1,363 @@
+@page "/roles"
+@using FrontendBlazorApi.Models
+@using FrontendBlazorApi.Servicios
+@using FrontendBlazorApi.Components
+@inherits PaginaAutenticada
+@inject ServicioApiGenerico servicioApi
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<PageTitle>Gestión de Roles</PageTitle>
+
+<div class="container-fluid py-4">
+    <!-- Encabezado -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-primary">
+            <i class="bi bi-shield-lock me-2"></i>Gestión de Roles
+        </h2>
+    </div>
+
+    <!-- Mensajes -->
+    @if (!string.IsNullOrEmpty(mensaje))
+    {
+        <div class="alert @estiloMensaje alert-dismissible fade show shadow-sm" role="alert">
+            <i class="bi @iconoMensaje me-2"></i>@mensaje
+            <button type="button" class="btn-close" @onclick="() => mensaje = string.Empty"></button>
+        </div>
+    }
+
+    <!-- Barra de herramientas -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex gap-2 flex-wrap">
+                <button class="btn btn-info btn-sm" @onclick="ProbarConexion" disabled="@cargando">
+                    <i class="bi bi-wifi me-1"></i> Probar Conexión
+                </button>
+                <button class="btn btn-primary btn-sm" @onclick="CargarRoles" disabled="@cargando">
+                    <i class="bi bi-list-ul me-1"></i> Cargar Roles
+                </button>
+                <button class="btn btn-warning btn-sm" @onclick="LimpiarFormulario" disabled="@cargando">
+                    <i class="bi bi-eraser me-1"></i> Limpiar Formulario
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulario de Rol -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="bi bi-shield-plus me-2"></i>
+                @(modoEdicion ? "Editar Rol" : "Nuevo Rol")
+            </h5>
+        </div>
+        <div class="card-body">
+            <EditForm Model="rolActual" OnValidSubmit="GuardarRol" FormName="formRol">
+                <DataAnnotationsValidator />
+
+                <div class="row g-3">
+                    <!-- Nombre del Rol -->
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-shield"></i> Nombre del Rol
+                        </label>
+                        <InputText class="form-control" @bind-Value="rolActual.Nombre"
+                                   placeholder="Ej: Administrador, Vendedor, etc." />
+                        <ValidationMessage For="() => rolActual.Nombre" />
+                        <small class="text-muted">
+                            Los roles definen los permisos y accesos de los usuarios en el sistema
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Botones de acción -->
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn @(modoEdicion ? "btn-warning" : "btn-success") shadow-sm" disabled="@cargando">
+                        <i class="bi @(modoEdicion ? "bi-pencil-square" : "bi-plus-circle") me-1"></i>
+                        @(modoEdicion ? "Actualizar" : "Crear") Rol
+                    </button>
+
+                    @if (modoEdicion)
+                    {
+                        <button type="button" class="btn btn-secondary shadow-sm" @onclick="LimpiarFormulario" disabled="@cargando">
+                            <i class="bi bi-x-circle me-1"></i> Cancelar
+                        </button>
+                    }
+                </div>
+            </EditForm>
+        </div>
+    </div>
+
+    <!-- Tabla de Roles -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="bi bi-table me-2"></i>Listado de Roles
+            </h5>
+        </div>
+        <div class="card-body">
+            @if (cargando)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Cargando roles...</p>
+                </div>
+            }
+            else if (roles == null || !roles.Any())
+            {
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>No hay roles registrados
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped align-middle">
+                        <thead class="table-primary">
+                            <tr>
+                                <th><i class="bi bi-hash me-1"></i>ID</th>
+                                <th><i class="bi bi-shield me-1"></i>Nombre del Rol</th>
+                                <th class="text-center"><i class="bi bi-gear me-1"></i>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var rol in roles)
+                            {
+                                <tr>
+                                    <td class="fw-bold">@rol.Id</td>
+                                    <td>
+                                        <span class="badge @ObtenerColorRol(rol.Nombre) fs-6">
+                                            <i class="bi bi-shield-check me-1"></i>@rol.Nombre
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn btn-outline-warning" @onclick="() => CargarParaEditar(rol)"
+                                                    title="Editar" disabled="@cargando">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger" @onclick="() => EliminarRol(rol.Id)"
+                                                    title="Eliminar" disabled="@cargando">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-3">
+                    <span class="badge bg-primary">Total: @roles.Count roles</span>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Rol> roles = new();
+    private Rol rolActual = new();
+    private bool cargando = false;
+    private bool modoEdicion = false;
+    private string mensaje = string.Empty;
+    private string estiloMensaje = "alert-info";
+    private string iconoMensaje = "bi-info-circle";
+
+    protected override async Task OnAutenticacionVerificada()
+    {
+        // Este método se llama automáticamente después de verificar la autenticación
+        await CargarDatosIniciales();
+    }
+
+    private async Task CargarDatosIniciales()
+    {
+        await CargarRoles();
+    }
+
+    private async Task ProbarConexion()
+    {
+        try
+        {
+            cargando = true;
+            await servicioApi.ObtenerTodosAsync<Rol>("rol");
+            MostrarMensaje("Conexión exitosa con la API", "success");
+        }
+        catch (Exception ex)
+        {
+            MostrarMensaje($"Error de conexión: {ex.Message}", "danger");
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+ private async Task CargarRoles()
+{
+    try
+    {
+        cargando = true;
+        mensaje = string.Empty;
+
+        // Usar el servicio genérico para obtener roles
+        var respuesta = await servicioApi.ObtenerTodosAsync<Rol>("rol");
+        roles = respuesta ?? new List<Rol>();
+
+        MostrarMensaje($"Se cargaron {roles.Count} roles", "success");
+    }
+    catch (Exception ex)
+    {
+        MostrarMensaje($"Error al cargar roles: {ex.Message}", "danger");
+        roles = new List<Rol>();
+    }
+    finally
+    {
+        cargando = false;
+    }
+}
+
+private async Task GuardarRol()
+{
+    try
+    {
+        cargando = true;
+
+        if (string.IsNullOrWhiteSpace(rolActual.Nombre))
+        {
+            MostrarMensaje("Por favor ingrese el nombre del rol", "warning");
+            return;
+        }
+
+        if (modoEdicion)
+        {
+            var confirmacion = await JS.InvokeAsync<bool>("confirm",
+                $"¿Está seguro de actualizar el rol '{rolActual.Nombre}'?");
+
+            if (!confirmacion) return;
+
+            // Para actualizar - 2 parámetros
+            var parametros = new { 
+                p_id = rolActual.Id,
+                p_nombre = rolActual.Nombre.Trim()
+            };
+
+            await servicioApi.EjecutarStoredProcedureAsync("actualizar_rol", parametros);
+            MostrarMensaje($"Rol '{rolActual.Nombre}' actualizado exitosamente", "success");
+        }
+        else
+        {
+            // Para crear - 1 parámetro
+            var parametros = new { 
+                p_nombre = rolActual.Nombre.Trim()
+            };
+
+            await servicioApi.EjecutarStoredProcedureAsync("crear_rol", parametros);
+            MostrarMensaje($"Rol '{rolActual.Nombre}' creado exitosamente", "success");
+        }
+
+        await CargarRoles();
+        LimpiarFormulario();
+    }
+    catch (Exception ex)
+    {
+        MostrarMensaje($"Error al guardar: {ex.Message}", "danger");
+        Console.WriteLine($"Error detallado: {ex}");
+    }
+    finally
+    {
+        cargando = false;
+    }
+}
+
+   private async Task EliminarRol(int id)
+{
+    try
+    {
+        var rolAEliminar = roles.FirstOrDefault(r => r.Id == id);
+        if (rolAEliminar == null)
+        {
+            MostrarMensaje("Rol no encontrado", "warning");
+            return;
+        }
+
+        var confirmacion = await JS.InvokeAsync<bool>("confirm",
+            $"¿Está seguro de eliminar el rol '{rolAEliminar.Nombre}'?\n\nEsta acción no se puede deshacer.");
+
+        if (!confirmacion) return;
+
+        cargando = true;
+        
+        // Usar objeto anónimo para los parámetros
+        var parametros = new { 
+            p_id = id 
+        };
+
+        await servicioApi.EjecutarStoredProcedureAsync("eliminar_rol", parametros);
+        MostrarMensaje($"Rol '{rolAEliminar.Nombre}' eliminado exitosamente", "success");
+        await CargarRoles();
+    }
+    catch (Exception ex)
+    {
+        MostrarMensaje($"Error al eliminar: {ex.Message}", "danger");
+        Console.WriteLine($"Error detallado al eliminar: {ex}");
+    }
+    finally
+    {
+        cargando = false;
+    }
+}
+
+    private void CargarParaEditar(Rol rol)
+    {
+        rolActual = new Rol
+        {
+            Id = rol.Id,
+            Nombre = rol.Nombre
+        };
+        modoEdicion = true;
+        mensaje = string.Empty;
+    }
+
+    private void LimpiarFormulario()
+    {
+        rolActual = new Rol();
+        modoEdicion = false;
+        mensaje = string.Empty;
+    }
+
+    private void MostrarMensaje(string texto, string tipo)
+    {
+        mensaje = texto;
+        estiloMensaje = tipo switch
+        {
+            "success" => "alert-success",
+            "danger" => "alert-danger",
+            "warning" => "alert-warning",
+            _ => "alert-info"
+        };
+        iconoMensaje = tipo switch
+        {
+            "success" => "bi-check-circle",
+            "danger" => "bi-exclamation-triangle",
+            "warning" => "bi-exclamation-circle",
+            _ => "bi-info-circle"
+        };
+    }
+
+    private string ObtenerColorRol(string nombreRol)
+    {
+        return nombreRol.ToLower() switch
+        {
+            "administrador" => "bg-danger",
+            "vendedor" => "bg-success",
+            "cajero" => "bg-info",
+            "contador" => "bg-warning text-dark",
+            "cliente" => "bg-secondary",
+            _ => "bg-primary"
+        };
+    }
+}
