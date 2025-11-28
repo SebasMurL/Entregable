@@ -1,0 +1,182 @@
+@page "/productos-entregables"
+
+@using System.Net.Http.Json
+@using FrontendBlazorApi.Models
+@inject IHttpClientFactory fabricaHttp
+@rendermode InteractiveServer
+
+<h3>Productos y sus Entregables</h3>
+
+<div class="mb-3 d-flex gap-2">
+    <button class="btn btn-outline-primary" @onclick="CargarProductos">Cargar Productos</button>
+    <button class="btn btn-outline-secondary" @onclick="LimpiarTodo">Limpiar</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(mensaje))
+{
+    <div class="@claseAviso">@mensaje</div>
+}
+
+@if (cargando)
+{
+    <p><em>Cargando...</em></p>
+}
+else if (listaProductos.Count == 0)
+{
+    <p>No hay productos disponibles.</p>
+}
+else
+{
+    <div class="list-group">
+        @foreach (var p in listaProductos)
+        {
+            <button class="list-group-item list-group-item-action"
+                    @onclick="@(() => SeleccionarProducto(p))">
+                <strong>@p.Id</strong> - @p.Codigo
+            </button>
+        }
+    </div>
+}
+
+@if (productoSeleccionado is not null)
+{
+    <hr />
+    <h4>Producto Seleccionado</h4>
+
+    <p><strong>ID:</strong> @productoSeleccionado.Id</p>
+    <p><strong>Código:</strong> @productoSeleccionado.Codigo</p>
+    <p><strong>Descripción:</strong> @productoSeleccionado.Descripcion</p>
+
+    <hr />
+    <h5>Entregables de este producto</h5>
+
+    @if (cargandoEntregables)
+    {
+        <p><em>Cargando entregables...</em></p>
+    }
+    else if (listaEntregables.Count == 0)
+    {
+        <p>No hay entregables asociados a este producto.</p>
+    }
+    else
+    {
+        <ul class="list-group">
+            @foreach (var e in listaEntregables)
+            {
+                <li class="list-group-item">
+                    <strong>@e.Titulo</strong> — @e.Codigo<br />
+                    <small>@e.Descripcion</small>
+                </li>
+            }
+        </ul>
+    }
+}
+
+@code {
+
+    private List<Producto> listaProductos = new();
+    private List<Entregable> listaEntregables = new();
+
+    private Producto? productoSeleccionado;
+
+    private string mensaje = "";
+    private string claseAviso = "alert alert-info";
+
+    private bool cargando = false;
+    private bool cargandoEntregables = false;
+
+    private const string urlProductos = "api/producto";
+    private const string urlEntregables = "api/entregable";
+    private const string urlProductoEntregables = "api/producto_entregables"; // tabla relación
+
+    private async Task CargarProductos()
+    {
+        LimpiarMensajes();
+        try
+        {
+            cargando = true;
+
+            var cliente = fabricaHttp.CreateClient("ApiProductos");
+            var respuesta = await cliente.GetFromJsonAsync<RespuestaApi<List<Producto>>>(urlProductos);
+
+            listaProductos = respuesta?.Datos ?? new();
+
+            mensaje = $"Se cargaron {listaProductos.Count} productos.";
+            claseAviso = "alert alert-success";
+        }
+        catch (Exception e)
+        {
+            mensaje = $"Error al cargar productos: {e.Message}";
+            claseAviso = "alert alert-danger";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task SeleccionarProducto(Producto p)
+    {
+        productoSeleccionado = p;
+        listaEntregables.Clear();
+        await CargarEntregablesDeProducto(p.Id);
+    }
+
+    private async Task CargarEntregablesDeProducto(int idProducto)
+{
+    cargandoEntregables = true;
+
+    try
+    {
+        // 1. Obtener TODAS las relaciones
+        var clienteRel = fabricaHttp.CreateClient("ApiProducto_Entregables");
+        var respRel = await clienteRel.GetFromJsonAsync<RespuestaApi<List<Producto_Entregable>>>("api/producto_entregable");
+
+        var relaciones = respRel?.Datos?
+            .Where(r => r.IdProducto == idProducto)
+            .ToList() ?? new();
+
+        listaEntregables.Clear();
+
+        if (relaciones.Count == 0)
+            return;
+
+        // 2. Obtener los entregables usando el IdEntregable
+        var clienteEnt = fabricaHttp.CreateClient("ApiEntregables");
+
+        foreach (var rel in relaciones)
+        {
+            var ruta = $"api/entregable/id/{rel.IdEntregable}";
+            var respEnt = await clienteEnt.GetFromJsonAsync<RespuestaApi<List<Entregable>>>(ruta);
+
+            var ent = respEnt?.Datos?.FirstOrDefault();
+            if (ent != null)
+                listaEntregables.Add(ent);
+        }
+    }
+    catch (Exception e)
+    {
+        mensaje = $"Error al cargar entregables: {e.Message}";
+        claseAviso = "alert alert-danger";
+    }
+    finally
+    {
+        cargandoEntregables = false;
+    }
+}
+
+
+    private void LimpiarTodo()
+    {
+        listaProductos.Clear();
+        listaEntregables.Clear();
+        productoSeleccionado = null;
+        LimpiarMensajes();
+    }
+
+    private void LimpiarMensajes()
+    {
+        mensaje = "";
+        claseAviso = "alert alert-info";
+    }
+}

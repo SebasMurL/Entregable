@@ -1,0 +1,125 @@
+@page "/proyecto_estado"
+
+@using System.Net.Http.Json
+@using FrontendBlazorApi.Models
+@inject IHttpClientFactory fabricaHttp
+@rendermode InteractiveServer
+
+<PageTitle>Estados de Proyectos</PageTitle>
+
+<h3>Listado de Proyectos con su Estado</h3>
+
+@if (!string.IsNullOrWhiteSpace(mensaje))
+{
+    <div class="@claseAviso" role="alert">@mensaje</div>
+}
+
+<hr />
+
+@if (cargando)
+{
+    <p><em>Cargando información...</em></p>
+}
+else if (listaVista.Count == 0)
+{
+    <p>No hay proyectos para mostrar.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ID Proyecto</th>
+                <th>Código</th>
+                <th>Título</th>
+                <th>Estado</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var item in listaVista)
+            {
+                <tr class="@((item.NombreEstado == "Sin estado") ? "table-danger" : "")">
+                    <td>@item.IdProyecto</td>
+                    <td>@item.Codigo</td>
+                    <td>@item.Titulo</td>
+                    <td>@item.NombreEstado</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<VistaProyectoEstado> listaVista = new();
+    private string mensaje = "";
+    private string claseAviso = "alert alert-info";
+    private bool cargando = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarDatos();
+    }
+
+    private async Task CargarDatos()
+    {
+        cargando = true;
+        try
+        {
+            // Cargar proyectos
+            var clienteProy = fabricaHttp.CreateClient("ApiProyectos");
+            var respProy = await clienteProy.GetFromJsonAsync<RespuestaApi<List<Proyecto>>>("api/proyecto");
+            var proyectos = respProy?.Datos ?? new();
+
+            // Cargar estados
+            var clienteEst = fabricaHttp.CreateClient("ApiEstados");
+            var respEst = await clienteEst.GetFromJsonAsync<RespuestaApi<List<Estado>>>("api/estado");
+            var estados = respEst?.Datos ?? new();
+
+            // Cargar asociaciones
+            var clienteEP = fabricaHttp.CreateClient("ApiEstado_Proyectos");
+            var respEP = await clienteEP.GetFromJsonAsync<RespuestaApi<List<Estado_Proyecto>>>("api/estado_proyecto");
+            var asociaciones = respEP?.Datos ?? new();
+
+            // Construir vista combinada (LEFT JOIN manual)
+            listaVista = proyectos
+                .GroupJoin(
+                    asociaciones,
+                    p => p.Id,
+                    ep => ep.IdProyecto,
+                    (p, epGroup) => new { Proyecto = p, Est = epGroup.FirstOrDefault() }
+                )
+                .Select(x => new VistaProyectoEstado
+                {
+                    IdProyecto = x.Proyecto.Id,
+                    Codigo = x.Proyecto.Codigo,
+                    Titulo = x.Proyecto.Titulo,
+                    NombreEstado = x.Est == null
+                        ? "Sin estado"
+                        : estados.FirstOrDefault(e => e.Id == x.Est.IdEstado)?.Nombre ?? "Sin estado"
+                })
+                .OrderBy(x => x.IdProyecto)
+                .ToList();
+
+            mensaje = $"Se cargaron {listaVista.Count} proyectos.";
+            claseAviso = "alert alert-success";
+        }
+        catch (Exception e)
+        {
+            mensaje = $"Error cargando datos: {e.Message}";
+            claseAviso = "alert alert-danger";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    public class VistaProyectoEstado
+    {
+        public int IdProyecto { get; set; }
+        public string Codigo { get; set; } = "";
+        public string Titulo { get; set; } = "";
+        public string NombreEstado { get; set; } = "";
+    }
+}

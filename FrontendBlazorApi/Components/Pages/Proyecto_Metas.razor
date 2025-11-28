@@ -1,0 +1,181 @@
+@page "/proyecto_metas"
+
+@using System.Net.Http.Json
+@using FrontendBlazorApi.Models
+@inject IHttpClientFactory fabricaHttp
+@rendermode InteractiveServer
+
+<PageTitle>Proyecto → Metas Estratégicas</PageTitle>
+
+<h3>Metas Estratégicas por Proyecto (Vista General)</h3>
+
+@if (!string.IsNullOrWhiteSpace(mensaje))
+{
+    <div class="@claseAviso" role="alert">@mensaje</div>
+}
+
+@if (cargando)
+{
+    <p><em>Cargando información...</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Proyecto</th>
+                <th>Código</th>
+                <th>Meta</th>
+                <th>Descripción</th>
+                <th>Fecha Asociación</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in tablaGeneral)
+            {
+                if (item.SinMeta)
+                {
+                    <tr class="table-danger">
+                        <td>@item.TituloProyecto</td>
+                        <td>@item.CodigoProyecto</td>
+                        <td colspan="3" class="text-danger"><b>SIN METAS ASOCIADAS</b></td>
+                    </tr>
+                }
+                else
+                {
+                    <tr>
+                        <td>@item.TituloProyecto</td>
+                        <td>@item.CodigoProyecto</td>
+                        <td>@item.TituloMeta</td>
+                        <td>@item.DescripcionMeta</td>
+                        <td>@item.Fecha?.ToString("yyyy-MM-dd")</td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+
+    private List<Proyecto> listaProyectos = new();
+    private List<Meta_Proyecto> listaRelaciones = new();
+
+    private List<FilaMetaProyecto> tablaGeneral = new();
+
+    private bool cargando = false;
+    private string mensaje = "";
+    private string claseAviso = "alert alert-info";
+
+    // ENDPOINTS CORRECTOS
+    private const string epProyectos = "api/entidades/lista/proyecto";
+    private const string epMetaProyecto = "api/entidades/lista/meta_proyecto";
+    private const string epMetaPorId = "api/entidades/uno/meta_estrategica";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarTodo();
+    }
+
+    private async Task CargarTodo()
+    {
+        try
+        {
+            cargando = true;
+
+            await CargarProyectos();
+            await CargarRelaciones();
+            await CargarMetasPorId();
+            ConstruirTabla();
+        }
+        catch (Exception ex)
+        {
+            mensaje = $"Error cargando datos: {ex.Message}";
+            claseAviso = "alert alert-danger";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task CargarProyectos()
+    {
+        var cliente = fabricaHttp.CreateClient("ApiProyectos");
+        var resp = await cliente.GetFromJsonAsync<RespuestaApi<List<Proyecto>>>(epProyectos);
+        listaProyectos = resp?.Datos ?? new();
+    }
+
+    private async Task CargarRelaciones()
+    {
+        var cliente = fabricaHttp.CreateClient("ApiMeta_Proyectos");
+        var resp = await cliente.GetFromJsonAsync<RespuestaApi<List<Meta_Proyecto>>>(epMetaProyecto);
+        listaRelaciones = resp?.Datos ?? new();
+    }
+
+    private async Task CargarMetasPorId()
+    {
+        var cliente = fabricaHttp.CreateClient("ApiMetasEstrategicas");
+
+        foreach (var rel in listaRelaciones)
+        {
+            try
+            {
+                var ruta = $"{epMetaPorId}/{rel.IdMeta}";
+                var resp = await cliente.GetFromJsonAsync<RespuestaApi<MetaEstrategica>>(ruta);
+                rel.MetaEstrategica = resp?.Datos;
+            }
+            catch
+            {
+                // Si falla, se deja nulo y se refleja como sin descripción
+            }
+        }
+    }
+
+    private void ConstruirTabla()
+    {
+        tablaGeneral = new();
+
+        foreach (var pr in listaProyectos)
+        {
+            var metas = listaRelaciones.Where(x => x.IdProyecto == pr.Id).ToList();
+
+            // SI NO TIENE METAS → línea roja
+            if (metas.Count == 0)
+            {
+                tablaGeneral.Add(new FilaMetaProyecto
+                {
+                    TituloProyecto = pr.Titulo,
+                    CodigoProyecto = pr.Codigo,
+                    SinMeta = true
+                });
+                continue;
+            }
+
+            // SI TIENE → agregar todas
+            foreach (var m in metas)
+            {
+                tablaGeneral.Add(new FilaMetaProyecto
+                {
+                    TituloProyecto = pr.Titulo,
+                    CodigoProyecto = pr.Codigo,
+                    TituloMeta = m.MetaEstrategica?.Titulo,
+                    DescripcionMeta = m.MetaEstrategica?.Descripcion,
+                    Fecha = m.FechaAsociacion
+                });
+            }
+        }
+    }
+
+    private class FilaMetaProyecto
+    {
+        public string TituloProyecto { get; set; } = "";
+        public string? CodigoProyecto { get; set; }
+
+        public string? TituloMeta { get; set; }
+        public string? DescripcionMeta { get; set; }
+        public DateTime? Fecha { get; set; }
+
+        public bool SinMeta { get; set; }
+    }
+}
