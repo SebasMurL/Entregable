@@ -261,10 +261,22 @@ builder.Services.AddHttpClient("ApiPresupuestos", cliente =>
     cliente.BaseAddress = new Uri("http://localhost:5031/");
 });
 
+builder.Services.AddHttpClient("ApiDistribucionPresupuestos", cliente =>
+{
+    cliente.BaseAddress = new Uri("http://localhost:5031/");
+});
+
 builder.Services.AddHttpClient("ApiEjecucionPresupuestos", cliente =>
 {
     cliente.BaseAddress = new Uri("http://localhost:5031/");
 });
+
+builder.Services.AddHttpClient("ApiArchivo_Entregables", cliente =>
+{
+    cliente.BaseAddress = new Uri("http://localhost:5031/");
+});
+
+
 
 // Registrar ServicioApiGenerico (CRUD)
 builder.Services.AddScoped<FrontendBlazorApi.Servicios.ServicioApiGenerico>();
