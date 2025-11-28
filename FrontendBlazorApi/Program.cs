@@ -274,6 +274,10 @@ builder.Services.AddHttpClient("ApiAuditoria", client =>
     //http://localhost:5031/
     client.BaseAddress = new Uri("http://aplientrega.runasp.net/"); // Ajusta la URL base
 });
+builder.Services.AddHttpClient("ApiAuditoria", client =>
+{
+    client.BaseAddress = new Uri("http://localhost:5031/"); // Ajusta la URL base
+});
 
 
 // Agrega esto con los otros servicios:

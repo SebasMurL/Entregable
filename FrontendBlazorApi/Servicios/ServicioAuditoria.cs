@@ -6,6 +6,7 @@ namespace FrontendBlazorApi.Servicios
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
         
+        // Usar una lista estática para persistir los datos entre requests
         private static readonly List<Auditoria> _auditoriasEnMemoria = new();
         private static long _contadorId = 1;
         private static readonly object _lockObject = new();
