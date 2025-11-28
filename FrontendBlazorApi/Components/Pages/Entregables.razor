@@ -5,7 +5,11 @@
 @using FrontendBlazorApi.Components
 @inject IHttpClientFactory fabricaHttp
 @inject ServicioApiGenerico servicioApi
+@inject IServicioAuditoria servicioAuditoria
+@inject IHttpContextAccessor httpContextAccessor
+@inject NavigationManager NavigationManager
 @inherits PaginaAutenticada
+@inject ServicioAutenticacion ServicioAuth
 @rendermode InteractiveServer
 
 <PageTitle>Entregables</PageTitle>
@@ -26,6 +30,9 @@ else
     <div class="mb-3 d-flex gap-2">
         <button type="button" class="btn btn-outline-primary" @onclick="CargarEntregables">Mostrar todos</button>
         <button type="button" class="btn btn-outline-dark" @onclick="LimpiarFormulario">Limpiar</button>
+        <button type="button" class="btn btn-outline-info" @onclick="VerAuditoriaEntregables">
+            <i class="bi bi-clock-history"></i> Ver Auditoría
+        </button>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(mensaje))
@@ -153,6 +160,9 @@ else
     private bool cargando = false;
     private const string urlBaseApi = "api/entregable";
 
+    // Para auditoría
+    private Entregable? entregableAnterior;
+
     protected override async Task OnAutenticacionVerificada()
     {
         await CargarEntregables();
@@ -200,6 +210,19 @@ else
 
             if (encontrado is not null)
             {
+                // Guardar estado anterior para auditoría
+                entregableAnterior = new Entregable
+                {
+                    Id = encontrado.Id,
+                    Codigo = encontrado.Codigo,
+                    Titulo = encontrado.Titulo,
+                    Descripcion = encontrado.Descripcion,
+                    FechaInicio = encontrado.FechaInicio,
+                    FechaFinPrevista = encontrado.FechaFinPrevista,
+                    FechaModificacion = encontrado.FechaModificacion,
+                    FechaFinalizacion = encontrado.FechaFinalizacion
+                };
+
                 entregableActual = new Entregable
                 {
                     Id = encontrado.Id,
@@ -215,6 +238,7 @@ else
                 textoBotonGuardar = "Actualizar";
                 mensaje = "Entregable cargado en el formulario.";
                 claseAviso = "alert alert-success";
+                
             }
             else
             {
@@ -236,9 +260,13 @@ else
     private async Task GuardarSegunEstado()
     {
         if (existeEntregable)
+        {
             await ActualizarEntregable();
+        }
         else
+        {
             await CrearEntregable();
+        }
     }
 
     private async Task CrearEntregable()
@@ -267,21 +295,25 @@ else
             
             if (respuesta.IsSuccessStatusCode)
             {
-                mensaje = "Entregable creado correctamente.";
+                // Auditoría después de crear
+                await RegistrarAuditoriaCreacion(entregableActual);
+                
+                mensaje = "✅ Entregable creado correctamente.";
                 claseAviso = "alert alert-success";
                 await CargarEntregables();
                 LimpiarFormulario();
+                
             }
             else
             {
                 var detalle = await respuesta.Content.ReadAsStringAsync();
-                mensaje = $"No se pudo crear el entregable. Detalle: {detalle}";
+                mensaje = $" No se pudo crear el entregable. Detalle: {detalle}";
                 claseAviso = "alert alert-danger";
             }
         }
         catch (Exception error)
         {
-            mensaje = $"Error al crear entregable: {error.Message}";
+            mensaje = $" Error al crear entregable: {error.Message}";
             claseAviso = "alert alert-danger";
         }
     }
@@ -320,22 +352,32 @@ else
             
             if (respuesta.IsSuccessStatusCode)
             {
-                mensaje = "Entregable actualizado correctamente.";
+                if (entregableAnterior != null)
+                {
+                    await RegistrarAuditoriaActualizacion(entregableAnterior, entregableActual);
+                }
+                else
+                {
+                    await RegistrarAuditoriaActualizacionBasica(entregableActual);
+                }
+                
+                mensaje = "✏️ Entregable actualizado correctamente.";
                 claseAviso = "alert alert-success";
                 await CargarEntregables();
                 existeEntregable = true;
                 textoBotonGuardar = "Actualizar";
+                
             }
             else
             {
                 var detalle = await respuesta.Content.ReadAsStringAsync();
-                mensaje = $"No se pudo actualizar el entregable. Detalle: {detalle}";
+                mensaje = $" No se pudo actualizar el entregable. Detalle: {detalle}";
                 claseAviso = "alert alert-danger";
             }
         }
         catch (Exception error)
         {
-            mensaje = $"Error al actualizar entregable: {error.Message}";
+            mensaje = $" Error al actualizar entregable: {error.Message}";
             claseAviso = "alert alert-danger";
         }
     }
@@ -358,23 +400,143 @@ else
             
             if (respuesta.IsSuccessStatusCode)
             {
-                mensaje = "Entregable eliminado correctamente.";
+                // Auditoría después de eliminar
+                await RegistrarAuditoriaEliminacion(entregableActual);
+                
+                mensaje = " Entregable eliminado correctamente.";
                 claseAviso = "alert alert-success";
                 await CargarEntregables();
                 LimpiarFormulario();
+                
             }
             else
             {
                 var detalle = await respuesta.Content.ReadAsStringAsync();
-                mensaje = $"No se pudo eliminar el entregable. Detalle: {detalle}";
+                mensaje = $" No se pudo eliminar el entregable. Detalle: {detalle}";
                 claseAviso = "alert alert-danger";
             }
         }
         catch (Exception error)
         {
-            mensaje = $"Error al eliminar entregable: {error.Message}";
+            mensaje = $" Error al eliminar entregable: {error.Message}";
             claseAviso = "alert alert-danger";
         }
+    }
+
+    // Métodos de Auditoría
+    private async Task<string> ObtenerUsuarioId()
+    {
+        try
+        {
+            // Usar el método ObtenerEmailUsuarioAsync() de tu ServicioAutenticacion
+            var email = await ServicioAuth.ObtenerEmailUsuarioAsync();
+            
+            if (!string.IsNullOrEmpty(email))
+            {
+                return email;
+            }
+            else
+            {
+                return "UsuarioNoAutenticado";
+            }
+        }
+        catch (Exception ex)
+        {
+            return "ErrorObteniendoUsuario";
+        }
+    }
+
+    private async Task RegistrarAuditoriaCreacion(Entregable entregable)
+    {
+        try
+        {
+            var usuarioId = await ObtenerUsuarioId();
+            var ipAddress = ObtenerIpAddress();
+            var userAgent = ObtenerUserAgent();
+            
+            
+            await servicioAuditoria.RegistrarCreacionAsync(entregable, usuarioId, ipAddress, userAgent);
+            
+        }
+        catch (Exception ex)
+        {
+        }
+    }
+
+    private async Task RegistrarAuditoriaActualizacion(Entregable anterior, Entregable nuevo)
+    {
+        try
+        {
+            var usuarioId = await ObtenerUsuarioId();
+            var ipAddress = ObtenerIpAddress();
+            var userAgent = ObtenerUserAgent();
+            
+            
+            await servicioAuditoria.RegistrarActualizacionAsync(anterior, nuevo, usuarioId, ipAddress, userAgent);
+            
+        }
+        catch (Exception ex)
+        {
+        }
+    }
+
+    // Método de respaldo para cuando no hay datos anteriores
+    private async Task RegistrarAuditoriaActualizacionBasica(Entregable nuevo)
+    {
+        try
+        {
+            var usuarioId = await ObtenerUsuarioId();
+            var ipAddress = ObtenerIpAddress();
+            var userAgent = ObtenerUserAgent();
+            
+            
+            // Crear un entregable "vacío" como anterior para cumplir con la firma del método
+            var anteriorBasico = new Entregable
+            {
+                Id = nuevo.Id,
+                Codigo = "DESCONOCIDO",
+                Titulo = "DESCONOCIDO", 
+                Descripcion = "DESCONOCIDO"
+            };
+            
+            await servicioAuditoria.RegistrarActualizacionAsync(anteriorBasico, nuevo, usuarioId, ipAddress, userAgent);
+            
+        }
+        catch (Exception ex)
+        {
+        }
+    }
+
+    private async Task RegistrarAuditoriaEliminacion(Entregable entregable)
+    {
+        try
+        {
+            var usuarioId = await ObtenerUsuarioId();
+            var ipAddress = ObtenerIpAddress();
+            var userAgent = ObtenerUserAgent();
+            
+            
+            await servicioAuditoria.RegistrarEliminacionAsync(entregable, usuarioId, ipAddress, userAgent);
+            
+        }
+        catch (Exception ex)
+        {
+        }
+    }
+
+    private string ObtenerIpAddress()
+    {
+        return httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+    }
+
+    private string ObtenerUserAgent()
+    {
+        return httpContextAccessor.HttpContext?.Request.Headers["User-Agent"].ToString() ?? "Navegador";
+    }
+
+    private void VerAuditoriaEntregables()
+    {
+        NavigationManager.NavigateTo("/auditorias?tabla=Entregable");
     }
 
     private async Task ProbarConexion()
@@ -404,6 +566,20 @@ else
 
     private void CargarEnFormulario(Entregable entregable)
     {
+        // Guardar estado anterior para auditoría - HACER UNA COPIA PROFUNDA
+        entregableAnterior = new Entregable
+        {
+            Id = entregable.Id,
+            Codigo = entregable.Codigo,
+            Titulo = entregable.Titulo,
+            Descripcion = entregable.Descripcion,
+            FechaInicio = entregable.FechaInicio,
+            FechaFinPrevista = entregable.FechaFinPrevista,
+            FechaModificacion = entregable.FechaModificacion,
+            FechaFinalizacion = entregable.FechaFinalizacion
+        };
+
+        // Hacer una copia separada para el formulario
         entregableActual = new Entregable
         {
             Id = entregable.Id,
@@ -415,16 +591,19 @@ else
             FechaModificacion = entregable.FechaModificacion,
             FechaFinalizacion = entregable.FechaFinalizacion
         };
+        
         existeEntregable = true;
         textoBotonGuardar = "Actualizar";
         mensaje = "Entregable seleccionado desde el listado.";
         claseAviso = "alert alert-info";
+
     }
 
     private void LimpiarMensajes()
     {
         mensaje = "";
         claseAviso = "alert alert-info";
+        entregableAnterior = null;
     }
 
     private void LimpiarFormulario()
@@ -432,6 +611,7 @@ else
         entregableActual = new Entregable();
         existeEntregable = false;
         textoBotonGuardar = "Crear";
+        entregableAnterior = null;
         LimpiarMensajes();
     }
     

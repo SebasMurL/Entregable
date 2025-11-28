@@ -28,6 +28,10 @@ using Microsoft.AspNetCore.Components;       // Clases base de Blazor (Component
 using Microsoft.AspNetCore.Components.Web;   // Funcionalidades adicionales de renderizado web para Blazor
 using Microsoft.AspNetCore.Authentication.Cookies; // Para autenticación con cookies
 using Microsoft.AspNetCore.Components.Authorization; // Para AuthenticationStateProvider
+using FrontendBlazorApi.Servicios;
+using FrontendBlazorApi.Models;
+using Microsoft.EntityFrameworkCore;
+
 
 // -----------------------------------------------------------------------------
 // SECCIÓN 2: CREACIÓN DEL BUILDER
@@ -265,7 +269,18 @@ builder.Services.AddHttpClient("ApiEjecucionPresupuestos", cliente =>
 {
     cliente.BaseAddress = new Uri("http://localhost:5031/");
 });
+builder.Services.AddHttpClient("ApiAuditoria", client =>
+{
+    client.BaseAddress = new Uri("http://localhost:5031/"); // Ajusta la URL base
+});
 
+
+// Agrega esto con los otros servicios:
+builder.Services.AddDbContext<AuditoriaDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("SqlServer")));
+
+builder.Services.AddScoped<IServicioAuditoria, ServicioAuditoria>();
+builder.Services.AddHttpContextAccessor();
 // Registrar ServicioApiGenerico (CRUD)
 builder.Services.AddScoped<FrontendBlazorApi.Servicios.ServicioApiGenerico>();
 
