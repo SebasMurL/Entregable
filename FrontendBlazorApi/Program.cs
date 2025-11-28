@@ -169,105 +169,110 @@ builder.Services.AddScoped<FrontendBlazorApi.Servicios.ServicioAutenticacion>();
 // Configurar HttpClient para la API
 builder.Services.AddHttpClient("ApiGenerica", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
  builder.Services.AddHttpClient("ApiUsuarios", cliente =>
  {
      // URL base de la API que expone /api/producto
-     cliente.BaseAddress = new Uri("http://localhost:5031/");
+     cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
      // Aquí se pueden agregar encabezados por defecto si se requiere.
  });
 
 // Servicio HttpClient para consumir la API de tipos de producto
 builder.Services.AddHttpClient("ApiTipoProductos", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 
 builder.Services.AddHttpClient("ApiTipoProyectos", cliente =>
 {
-   cliente.BaseAddress = new Uri("http://localhost:5031/");
+   cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 
 builder.Services.AddHttpClient("ApiTipoResponsables", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 
 builder.Services.AddHttpClient("ApiEntregables", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 
 builder.Services.AddHttpClient("ApiEstados", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 
 builder.Services.AddHttpClient("ApiVariableEstrategicas", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 builder.Services.AddHttpClient("ApiProyectos", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 builder.Services.AddHttpClient("ApiActividades", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 builder.Services.AddHttpClient("ApiMetasEstrategicas", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 builder.Services.AddHttpClient("ApiObjetivosEstrategicos", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 // Rename client to ApiMetaProyectos (was ApiMeta_Proyectos) to match usages in components
 builder.Services.AddHttpClient("ApiMetaProyectos", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 
 builder.Services.AddHttpClient("ApiArchivos", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 
 builder.Services.AddHttpClient("ApiResponsables", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 
 builder.Services.AddHttpClient("ApiEstado_Proyectos", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 
 builder.Services.AddHttpClient("ApiProductos", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 
 builder.Services.AddHttpClient("ApiProducto_Entregables", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 
 builder.Services.AddHttpClient("ApiResponsable_Entregables", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 
 builder.Services.AddHttpClient("ApiPresupuestos", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
 });
 
 builder.Services.AddHttpClient("ApiEjecucionPresupuestos", cliente =>
 {
-    cliente.BaseAddress = new Uri("http://localhost:5031/");
+    cliente.BaseAddress = new Uri("http://aplientrega.runasp.net/");
+});
+builder.Services.AddHttpClient("ApiAuditoria", client =>
+{
+    //http://localhost:5031/
+    client.BaseAddress = new Uri("http://aplientrega.runasp.net/"); // Ajusta la URL base
 });
 builder.Services.AddHttpClient("ApiAuditoria", client =>
 {
