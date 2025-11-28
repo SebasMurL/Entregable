@@ -1,0 +1,118 @@
+@page "/auditorias"
+@using System.Text.Json
+@using FrontendBlazorApi.Models
+@using FrontendBlazorApi.Servicios
+@inherits PaginaAutenticada
+@inject IServicioAuditoria ServicioAuditoria
+@rendermode InteractiveServer
+
+<PageTitle>Auditoría del Sistema</PageTitle>
+
+<h3>Registros de Auditoría</h3>
+
+
+<div class="row mb-3">
+    <div class="col-md-3">
+        <label class="form-label">Tabla</label>
+        <select class="form-select" @bind="tablaFiltro">
+            <option value="">Todas las tablas</option>
+            <option value="Entregable">Entregables</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Desde</label>
+        <input type="date" class="form-control" @bind="desdeFiltro" />
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Hasta</label>
+        <input type="date" class="form-control" @bind="hastaFiltro" />
+    </div>
+    <div class="col-md-3 d-flex align-items-end">
+        <button class="btn btn-primary" @onclick="CargarAuditorias">Filtrar</button>
+    </div>
+</div>
+
+@if (cargando)
+{
+    <div class="text-center py-3">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando...</span>
+        </div>
+    </div>
+}
+else
+{
+    <div class="alert alert-info">
+        <i class="bi bi-database me-2"></i>
+        Total de registros de auditoría: @auditorias.Count
+    </div>
+    
+    @if (auditorias.Count == 0)
+    {
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            No hay registros de auditoría disponibles.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Tabla</th>
+                        <th>Acción</th>
+                        <th>ID Registro</th>
+                        <th>Usuario</th>
+                        <th>Fecha</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var auditoria in auditorias)
+                    {
+                        <tr>
+                            <td>@auditoria.FechaAuditoria.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td>@auditoria.TablaAfectada</td>
+                            <td>
+                                <span class="badge bg-@auditoria.AccionColor">@auditoria.Accion</span>
+                            </td>
+                            <td>@auditoria.RegistroId</td>
+                            <td>@auditoria.UsuarioId</td>
+                            <td>@auditoria.FechaAuditoria</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private List<AuditoriaDto> auditorias = new();
+    private bool cargando = false;
+    private string tablaFiltro = "";
+    private DateTime? desdeFiltro;
+    private DateTime? hastaFiltro;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarAuditorias();
+    }
+
+    private async Task CargarAuditorias()
+    {
+        cargando = true;
+        StateHasChanged();
+        
+        try
+        {
+            auditorias = await ServicioAuditoria.ObtenerAuditoriasAsync(tablaFiltro, desdeFiltro, hastaFiltro);
+        }
+        finally
+        {
+            cargando = false;
+            StateHasChanged();
+        }
+    }
+}

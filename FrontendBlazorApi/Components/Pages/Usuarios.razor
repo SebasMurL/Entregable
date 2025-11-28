@@ -311,7 +311,6 @@
 
     protected override async Task OnAutenticacionVerificada()
     {
-        // Este método se llama automáticamente después de verificar la autenticación
         await CargarDatosIniciales();
     }
     private string ObtenerNombreCortoAvatar(string rutaAvatar)
@@ -319,7 +318,6 @@
     if (string.IsNullOrEmpty(rutaAvatar))
         return "Sin avatar";
     
-    // Versión simple - tomar los últimos 20 caracteres
     return rutaAvatar.Length > 20 ? "..." + rutaAvatar.Substring(rutaAvatar.Length - 20) : rutaAvatar;
 }
 
@@ -459,7 +457,6 @@
     {
         cargando = true;
         
-        // Ahora sí es un stored procedure
         var resultado = await servicioApi.EjecutarStoredProcedureConResultadosAsync("sp_listar_usuarios_con_roles", new { });
         
         if (resultado?.Resultados != null && resultado.Resultados.Count > 0)
